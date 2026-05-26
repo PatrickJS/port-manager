@@ -1,0 +1,233 @@
+version: 2
+
+goal:
+  title: "Port Manager Repo"
+  slug: "port-manager-repo"
+  kind: specific
+  tranche: "Create and verify the private GitHub repo plus initial pnpm workspace implementation slice."
+  status: done
+  oracle:
+    signal: "Private GitHub repo PatrickJS/port-manager exists on main, contains the pnpm workspace source, local pnpm run check passes, and GitHub Actions Check passes on the pushed commit."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Local HEAD matches origin/main, gh reports visibility PRIVATE, remote source files exist, local pnpm run check passes, and GitHub Actions Check succeeds."
+  intake:
+    original_request: "Create a private GitHub repo called port-manager, push code to it, make the repo shape make sense, and use pnpm."
+    interpreted_outcome: "A private GitHub-backed pnpm workspace repo exists with a verified initial Node/CLI port manager implementation."
+    input_shape: specific
+    audience: "Patrick and future AI/developer agents"
+    authority: requested
+    proof_type: test
+    completion_proof: "GitHub repo exists and is private; source is pushed; local and remote checks pass."
+    likely_misfire: "Stopping after local scaffolding, skipping the private GitHub push, or using an npm package shape that cannot support compatibility adapters."
+    blind_spots_considered:
+      - "The unscoped npm name port-manager is already occupied, so the package uses @patrickjs/port-manager."
+      - "Free-port discovery is race-prone without reservePort."
+      - "GitHub Actions should be SHA-pinned before first push."
+      - "Replacing common packages must be opt-in per project, not global."
+    existing_plan_facts:
+      - "Repo path: /Users/patrickjs/code/patrickjs/port-manager"
+      - "GitHub repo: PatrickJS/port-manager"
+      - "Package manager: pnpm"
+      - "Core package: @patrickjs/port-manager"
+      - "CLI binary: port-manager"
+      - "Compatibility adapters: get-port, portfinder, detect-port, get-port-please"
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: none
+  local:
+    status: not_requested
+    url: null
+    command: "npx goalbuddy board docs/goals/port-manager-repo"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: default
+    objective: "Validate repo/package naming, GitHub auth, npm name collisions, and final workspace shape."
+    inputs:
+      - "npm package metadata"
+      - "GitHub repo state"
+      - "Local toolchain"
+    constraints:
+      - "Read-only."
+      - "Do not print secrets."
+    expected_output:
+      - "Repo and package naming decision"
+      - "GitHub auth state"
+      - "Workspace shape"
+    receipt:
+      result: done
+      summary: "Validated gh auth, pnpm, Node, npm package name collision, and absence of an existing PatrickJS/port-manager repo before scaffolding."
+      evidence:
+        - "gh auth status showed PatrickJS authenticated over HTTPS with repo scope."
+        - "pnpm --version returned 10.20.0."
+        - "npm view port-manager showed the unscoped npm package already exists."
+        - "gh repo view PatrickJS/port-manager initially could not resolve the repository."
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Create the local pnpm workspace and implement the initial Node core, CLI, tests, compatibility adapters, docs, and CI."
+    allowed_files:
+      - "**"
+    verify:
+      - "pnpm install"
+      - "pnpm run check"
+      - "pnpm --filter @patrickjs/port-manager-cli exec port-manager find 3000 --json"
+    stop_if:
+      - "Need credentials or files outside the repo."
+      - "Verification fails twice."
+      - "Package compatibility scope becomes ambiguous."
+    receipt:
+      result: done
+      changed_files:
+        - ".github/workflows/check.yml"
+        - ".gitignore"
+        - "README.md"
+        - "docs/architecture.md"
+        - "package.json"
+        - "packages/cli/bin/port-manager.js"
+        - "packages/cli/package.json"
+        - "packages/compat-detect-port/index.cjs"
+        - "packages/compat-detect-port/index.js"
+        - "packages/compat-detect-port/package.json"
+        - "packages/compat-get-port/index.js"
+        - "packages/compat-get-port/package.json"
+        - "packages/compat-get-port-please/index.cjs"
+        - "packages/compat-get-port-please/index.js"
+        - "packages/compat-get-port-please/package.json"
+        - "packages/compat-portfinder/index.cjs"
+        - "packages/compat-portfinder/index.js"
+        - "packages/compat-portfinder/package.json"
+        - "packages/core/package.json"
+        - "packages/core/src/explain.js"
+        - "packages/core/src/index.js"
+        - "packages/core/src/ports.js"
+        - "pnpm-lock.yaml"
+        - "pnpm-workspace.yaml"
+        - "scripts/check-package-exports.mjs"
+        - "scripts/check-style.mjs"
+        - "scripts/check-syntax.mjs"
+        - "tests/cli.test.js"
+        - "tests/compat.test.js"
+        - "tests/core.test.js"
+      commands:
+        - cmd: "pnpm install"
+          status: pass
+        - cmd: "pnpm run check"
+          status: pass
+        - cmd: "pnpm --filter @patrickjs/port-manager-cli exec port-manager find 3000 --json"
+          status: pass
+      summary: "Created the pnpm workspace, dependency-light core API, CLI, compatibility packages, tests, docs, and SHA-pinned GitHub Actions workflow."
+
+  - id: T003
+    type: pm
+    assignee: PM
+    status: done
+    reasoning_hint: default
+    objective: "Create the private GitHub repo, push main, and verify the remote source and CI."
+    inputs:
+      - "Local git repo"
+      - "GitHub CLI"
+      - "GitHub Actions run"
+    constraints:
+      - "Keep the repo private."
+      - "Use HTTPS git operations through gh auth."
+    expected_output:
+      - "Private GitHub repo URL"
+      - "Local and remote commit match"
+      - "Remote source exists"
+      - "Remote CI passes"
+    receipt:
+      result: done
+      summary: "Created private GitHub repo PatrickJS/port-manager, pushed main, and verified remote source plus successful Check workflow."
+      commands:
+        - cmd: "git commit -m 'initial port manager workspace'"
+          status: pass
+        - cmd: "gh repo create PatrickJS/port-manager --private --source=. --remote=origin --push"
+          status: pass
+        - cmd: "gh repo view PatrickJS/port-manager --json nameWithOwner,visibility,defaultBranchRef,url"
+          status: pass
+        - cmd: "gh run watch 26427207787 --repo PatrickJS/port-manager --exit-status"
+          status: pass
+      evidence:
+        - "https://github.com/PatrickJS/port-manager"
+        - "Initial pushed commit: d688c377dd9036a2bd8a0ff8652ba8a3e8c6ca98"
+        - "GitHub Actions run 26427207787 completed with conclusion success."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: default
+    objective: "Audit whether the implemented and pushed repo satisfies the original user outcome for this tranche."
+    inputs:
+      - "All done task receipts"
+      - "Last local verification"
+      - "GitHub remote state"
+      - "Current dirty diff"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if required Worker work is still queued or active."
+      - "Reject completion if local and remote evidence do not prove the original request."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "missing evidence"
+      - "next task if not complete"
+    receipt:
+      result: done
+      decision: complete
+      full_outcome_complete: true
+      summary: "The private GitHub repo exists, is private, contains the pnpm workspace source, local checks passed, remote CI passed, and local main matched origin/main before GoalBuddy files were added."
+      evidence:
+        - "gh repo view PatrickJS/port-manager reported visibility PRIVATE and default branch main."
+        - "Remote package.json and packages/core/src/ports.js were readable through gh api."
+        - "Local pnpm run check passed with 11 tests."
+        - "GitHub Actions Check run 26427207787 succeeded on d688c377dd9036a2bd8a0ff8652ba8a3e8c6ca98."
+      missing_evidence: []
+      next_task: null
+
+checks:
+  dirty_fingerprint: "GoalBuddy files included in a follow-up commit; final thread audit verifies clean worktree and remote state."
+  last_verification:
+    result: pass
+    task: T999
+    commands:
+      - cmd: "pnpm run check"
+        status: pass
+      - cmd: "gh repo view PatrickJS/port-manager --json nameWithOwner,visibility,defaultBranchRef,url"
+        status: pass
+      - cmd: "gh run view 26427207787 --repo PatrickJS/port-manager --json status,conclusion,url,headSha,workflowName"
+        status: pass
