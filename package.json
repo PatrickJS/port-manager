@@ -1,0 +1,25 @@
+{
+  "name": "port-manager-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.20.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/check-package-exports.mjs",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build",
+    "lint": "node scripts/check-style.mjs",
+    "test": "node --test tests/*.test.js",
+    "typecheck": "node scripts/check-syntax.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@patrickjs/port-manager": "workspace:*",
+    "@patrickjs/port-manager-cli": "workspace:*",
+    "@patrickjs/port-manager-compat-detect-port": "workspace:*",
+    "@patrickjs/port-manager-compat-get-port": "workspace:*",
+    "@patrickjs/port-manager-compat-get-port-please": "workspace:*",
+    "@patrickjs/port-manager-compat-portfinder": "workspace:*"
+  }
+}

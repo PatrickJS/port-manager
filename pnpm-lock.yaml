@@ -1,0 +1,60 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@patrickjs/port-manager':
+        specifier: workspace:*
+        version: link:packages/core
+      '@patrickjs/port-manager-cli':
+        specifier: workspace:*
+        version: link:packages/cli
+      '@patrickjs/port-manager-compat-detect-port':
+        specifier: workspace:*
+        version: link:packages/compat-detect-port
+      '@patrickjs/port-manager-compat-get-port':
+        specifier: workspace:*
+        version: link:packages/compat-get-port
+      '@patrickjs/port-manager-compat-get-port-please':
+        specifier: workspace:*
+        version: link:packages/compat-get-port-please
+      '@patrickjs/port-manager-compat-portfinder':
+        specifier: workspace:*
+        version: link:packages/compat-portfinder
+
+  packages/cli:
+    dependencies:
+      '@patrickjs/port-manager':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/compat-detect-port:
+    dependencies:
+      '@patrickjs/port-manager':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/compat-get-port:
+    dependencies:
+      '@patrickjs/port-manager':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/compat-get-port-please:
+    dependencies:
+      '@patrickjs/port-manager':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/compat-portfinder:
+    dependencies:
+      '@patrickjs/port-manager':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/core: {}

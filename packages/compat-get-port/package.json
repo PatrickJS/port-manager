@@ -1,0 +1,17 @@
+{
+  "name": "@patrickjs/port-manager-compat-get-port",
+  "version": "0.0.0",
+  "description": "get-port compatible adapter backed by @patrickjs/port-manager.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "dependencies": {
+    "@patrickjs/port-manager": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

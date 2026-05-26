@@ -1,0 +1,17 @@
+{
+  "name": "@patrickjs/port-manager-cli",
+  "version": "0.0.0",
+  "description": "CLI for Port Manager.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "port-manager": "./bin/port-manager.js"
+  },
+  "dependencies": {
+    "@patrickjs/port-manager": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

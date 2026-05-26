@@ -1,0 +1,20 @@
+{
+  "name": "@patrickjs/port-manager-compat-portfinder",
+  "version": "0.0.0",
+  "description": "portfinder compatible adapter backed by @patrickjs/port-manager.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.cjs",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs"
+    }
+  },
+  "dependencies": {
+    "@patrickjs/port-manager": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
