@@ -69,3 +69,15 @@ test("CLI list includes shared reserved ports", async () => {
     await rm(stateDir, { recursive: true, force: true });
   }
 });
+
+test("CLI kill reports missing owners as JSON", () => {
+  const result = spawnSync(process.execPath, [cli.pathname, "kill", "9", "--json"], {
+    encoding: "utf8",
+  });
+
+  assert.notEqual(result.status, 0);
+  const payload = JSON.parse(result.stderr);
+  assert.equal(payload.schemaVersion, "2026-05-26.port-manager.cli.v1");
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, "PORT_MANAGER_NO_OWNER");
+});

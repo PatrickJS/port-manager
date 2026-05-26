@@ -1,10 +1,11 @@
 # Architecture
 
-Port Manager has three layers:
+Port Manager has four layers:
 
 1. A canonical local port API in `@patrickjs/port-manager`.
 2. A JSON-first CLI that exposes the canonical API to humans, agents, and the native UI.
-3. Thin compatibility adapters that expose familiar package contracts while delegating to the canonical API.
+3. Native/local clients, including the macOS app and Raycast extension, that delegate to the same core or CLI contract.
+4. Thin compatibility adapters that expose familiar package contracts while delegating to the canonical API.
 
 The canonical API avoids runtime dependencies and uses Node built-ins:
 
@@ -25,6 +26,8 @@ pnpm --filter @patrickjs/port-manager-cli exec port-manager list --json
 That keeps ownership detection, common-port labels, reservation leases, and schema versions in the Node core/CLI contract. The npm adapters also import `@patrickjs/port-manager`, so replacement packages and the UI observe the same cooperative reservation registry.
 
 The registry is controlled by `PORT_MANAGER_STATE_DIR` when an explicit shared location is needed. Without that environment variable it uses a per-user temp directory. These leases coordinate cooperating Port Manager clients only; they are not a security boundary and do not prevent unrelated software from binding ports.
+
+Raycast support lives under `apps/raycast`. Its visible commands and AI tools import `@patrickjs/port-manager`, so Raycast does not get a forked scanner or a separate kill implementation.
 
 ## Naming
 

@@ -1,8 +1,9 @@
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 
 const roots = [".github", "apps", "docs", "packages", "script", "scripts", "tests"];
 const ignoredDirectories = new Set([".build", "node_modules", "dist"]);
+const ignoredExtensions = new Set([".png"]);
 const files = [];
 
 async function collect(dir) {
@@ -15,7 +16,7 @@ async function collect(dir) {
       if (!ignoredDirectories.has(entry.name)) {
         await collect(path);
       }
-    } else if (entry.isFile()) {
+    } else if (entry.isFile() && !ignoredExtensions.has(extname(entry.name))) {
       files.push(path);
     }
   }

@@ -16,3 +16,7 @@ export {
   explainPort,
   listListeningPorts,
 } from "./explain.js";
+
+export {
+  killPort,
+} from "./kill.js";

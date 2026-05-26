@@ -8,7 +8,9 @@ final class PortStore {
   var selection: ListeningPort.ID?
   var searchText = ""
   var isLoading = false
+  var isKilling = false
   var errorMessage: String?
+  var statusMessage: String?
   var lastUpdated: Date?
 
   private let cliClient = PortManagerCLIClient()
@@ -50,5 +52,24 @@ final class PortStore {
       errorMessage = error.localizedDescription
     }
     isLoading = false
+  }
+
+  func kill(_ port: ListeningPort) async {
+    guard port.canKill else { return }
+
+    isKilling = true
+    errorMessage = nil
+    statusMessage = nil
+    do {
+      let result = try await cliClient.killPort(port)
+      let names = result.killed.map { process in
+        process.name ?? "PID \(process.pid)"
+      }.joined(separator: ", ")
+      statusMessage = names.isEmpty ? "Kill signal sent" : "Killed \(names)"
+      await refresh()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+    isKilling = false
   }
 }

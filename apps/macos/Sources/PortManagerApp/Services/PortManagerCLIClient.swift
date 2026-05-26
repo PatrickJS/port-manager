@@ -43,6 +43,26 @@ struct PortManagerCLIClient {
     }
   }
 
+  func killPort(_ port: ListeningPort) async throws -> KillPortResult {
+    guard let primaryPort = port.primaryPort else {
+      throw PortManagerCLIError.commandFailed("Selected process has no port binding")
+    }
+
+    let data = try await runPortManager(arguments: [
+      "kill",
+      "\(primaryPort)",
+      "--pid",
+      "\(port.pid)",
+      "--json"
+    ])
+    let envelope = try JSONDecoder().decode(CLIEnvelope<KillPortResult>.self, from: data)
+    guard envelope.ok else {
+      throw PortManagerCLIError.commandFailed(envelope.error?.message ?? "port-manager kill failed")
+    }
+
+    return envelope.result
+  }
+
   private func runPortManager(arguments: [String]) async throws -> Data {
     try await Task.detached {
       let process = Process()
@@ -67,7 +87,11 @@ struct PortManagerCLIClient {
       let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
 
       guard process.terminationStatus == 0 else {
-        let message = String(data: errorData, encoding: .utf8) ?? "port-manager exited with \(process.terminationStatus)"
+        let stderrMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let stdoutMessage = String(data: output, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = stderrMessage?.isEmpty == false
+          ? stderrMessage!
+          : stdoutMessage ?? "port-manager exited with \(process.terminationStatus)"
         throw PortManagerCLIError.commandFailed(message.trimmingCharacters(in: .whitespacesAndNewlines))
       }
 
@@ -150,4 +174,23 @@ private struct CLIOwnership: Decodable {
   let confidence: String
   let summary: String
   let evidence: [String]
+}
+
+struct KillPortResult: Decodable {
+  let ok: Bool
+  let killed: [KilledProcess]
+  let failed: [KillFailure]
+}
+
+struct KilledProcess: Decodable {
+  let pid: Int
+  let name: String?
+  let signal: String
+}
+
+struct KillFailure: Decodable {
+  let pid: Int
+  let name: String?
+  let code: String
+  let message: String
 }

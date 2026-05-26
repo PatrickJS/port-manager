@@ -3,6 +3,7 @@ import {
   checkPort,
   explainPort,
   findAvailablePort,
+  killPort,
   listListeningPorts,
   reservePort,
 } from "@patrickjs/port-manager";
@@ -64,6 +65,21 @@ async function main(argv) {
     return;
   }
 
+  if (command === "kill") {
+    const port = requiredPort(args.positionals[0], command);
+    const result = await killPort({
+      port,
+      host: args.host,
+      pid: args.pid === undefined ? undefined : Number(args.pid),
+      signal: args.signal ?? (args.force ? "SIGKILL" : "SIGTERM"),
+    });
+    printResult({ ok: result.ok, command, result }, args.json);
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   if (command === "reserve") {
     const port = requiredPort(args.positionals[0], command);
     const reservation = await reservePort({ port, host: args.host });
@@ -113,6 +129,16 @@ function parseArgs(argv) {
       parsed.holdMs = arg.slice("--hold-ms=".length);
     } else if (arg === "--hold-ms") {
       parsed.holdMs = argv[++index];
+    } else if (arg.startsWith("--pid=")) {
+      parsed.pid = arg.slice("--pid=".length);
+    } else if (arg === "--pid") {
+      parsed.pid = argv[++index];
+    } else if (arg.startsWith("--signal=")) {
+      parsed.signal = arg.slice("--signal=".length);
+    } else if (arg === "--signal") {
+      parsed.signal = argv[++index];
+    } else if (arg === "--force") {
+      parsed.force = true;
     } else {
       parsed.positionals.push(arg);
     }
@@ -167,6 +193,7 @@ function printHelp() {
   port-manager check <port> [--json]
   port-manager explain <port> [--json]
   port-manager list [--json]
+  port-manager kill <port> [--pid 123] [--signal SIGTERM] [--force] [--json]
   port-manager reserve <port> [--json] [--hold-ms 1000]
 `);
 }

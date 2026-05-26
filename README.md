@@ -19,6 +19,7 @@ pnpm --filter @patrickjs/port-manager-cli exec port-manager find 3000 --json
 pnpm --filter @patrickjs/port-manager-cli exec port-manager check 3000 --json
 pnpm --filter @patrickjs/port-manager-cli exec port-manager explain 3000 --json
 pnpm --filter @patrickjs/port-manager-cli exec port-manager list --json
+pnpm --filter @patrickjs/port-manager-cli exec port-manager kill 3000 --json
 ```
 
 ## API
@@ -60,6 +61,16 @@ pnpm run verify:macos
 ```
 
 The generated app bundle stores the workspace path and `pnpm` path in `PortManagerConfig.json`, then calls the workspace CLI. That keeps the UI, CLI, and package adapters on the same core implementation while the standalone packaging shape is still being developed.
+
+## Raycast
+
+The local Raycast extension lives in `apps/raycast`. It provides:
+
+- a list command for inspecting ports and killing a selected process,
+- a menu bar command for a quick port count and jump back to the list,
+- AI tools for listing, explaining, finding, and killing ports through Raycast AI.
+
+From `apps/raycast`, run `npm install` and `npm run dev` to import it into Raycast during development. Use `npm run build` when you want Raycast to keep the local extension without the dev server.
 
 ## Replacement Strategy
 

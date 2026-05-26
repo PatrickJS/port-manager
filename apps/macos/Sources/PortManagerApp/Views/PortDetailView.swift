@@ -2,13 +2,14 @@ import SwiftUI
 
 struct PortDetailView: View {
   let port: ListeningPort?
+  let onKill: (ListeningPort) -> Void
 
   var body: some View {
     Group {
       if let port {
         ScrollView {
           VStack(alignment: .leading, spacing: 20) {
-            HeaderSection(port: port)
+            HeaderSection(port: port, onKill: onKill)
             DetailSection(title: "Bindings") {
               VStack(alignment: .leading, spacing: 8) {
                 ForEach(port.binds) { bind in
@@ -54,6 +55,7 @@ struct PortDetailView: View {
 
 private struct HeaderSection: View {
   let port: ListeningPort
+  let onKill: (ListeningPort) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -75,6 +77,14 @@ private struct HeaderSection: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+
+      Button(role: .destructive) {
+        onKill(port)
+      } label: {
+        Label("Kill Port", systemImage: "xmark.octagon")
+      }
+      .disabled(!port.canKill)
+      .help(port.canKill ? "Send SIGTERM to this process" : "Only listening process owners can be killed")
     }
   }
 }

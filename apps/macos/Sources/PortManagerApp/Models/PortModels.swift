@@ -43,6 +43,19 @@ struct ListeningPort: Identifiable, Hashable {
     }
     return .medium
   }
+
+  var canKill: Bool {
+    status == .listening && pid > 0
+  }
+
+  var primaryPort: Int? {
+    binds.first?.port
+  }
+
+  var primaryBindingLabel: String {
+    guard let bind = binds.first else { return "unknown port" }
+    return "\(bind.host):\(bind.port)"
+  }
 }
 
 enum PortStatus: String {

@@ -9,6 +9,7 @@ import {
   explainPort,
   findAvailablePort,
   isPortAvailable,
+  killPort,
   listPortReservations,
   reservePort,
 } from "@patrickjs/port-manager";
@@ -115,4 +116,11 @@ test("explainPort returns a stable JSON shape", async () => {
   } finally {
     await reservation.release();
   }
+});
+
+test("killPort rejects a port with no process owner", async () => {
+  await assert.rejects(
+    () => killPort({ port: 9 }),
+    (error) => error.code === "PORT_MANAGER_NO_OWNER",
+  );
 });

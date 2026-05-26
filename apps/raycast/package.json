@@ -1,0 +1,86 @@
+{
+  "name": "port-manager",
+  "title": "Port Manager",
+  "description": "Inspect, explain, find, and kill local TCP ports.",
+  "icon": "icon.png",
+  "author": "patrickjs",
+  "license": "MIT",
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Developer Tools"
+  ],
+  "keywords": [
+    "port",
+    "ports",
+    "tcp",
+    "localhost",
+    "kill"
+  ],
+  "commands": [
+    {
+      "name": "list-ports",
+      "title": "List Ports",
+      "description": "Show local listening TCP ports and their owning processes.",
+      "mode": "view"
+    },
+    {
+      "name": "find-port",
+      "title": "Find Port",
+      "description": "Find an available TCP port.",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "port",
+          "type": "text",
+          "placeholder": "3000",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "menu-bar",
+      "title": "Port Manager",
+      "description": "Show a quick port count in the macOS menu bar.",
+      "mode": "menu-bar",
+      "interval": "5m"
+    }
+  ],
+  "tools": [
+    {
+      "name": "list-ports",
+      "title": "List Local Ports",
+      "description": "List local listening TCP ports, owners, common port labels, and cooperative Port Manager reservations."
+    },
+    {
+      "name": "explain-port",
+      "title": "Explain Local Port",
+      "description": "Explain who owns a local TCP port and return process evidence."
+    },
+    {
+      "name": "find-port",
+      "title": "Find Available Port",
+      "description": "Find an available local TCP port, optionally starting from a requested port."
+    },
+    {
+      "name": "kill-port",
+      "title": "Kill Port Owner",
+      "description": "Send SIGTERM to the process that owns a local TCP port. Requires user confirmation."
+    }
+  ],
+  "ai": {
+    "instructions": "Use Port Manager to inspect local TCP ports. Prefer list-ports or explain-port before killing anything. Only use kill-port when the user explicitly asks to stop or kill a port owner."
+  },
+  "scripts": {
+    "dev": "ray develop",
+    "build": "ray build",
+    "lint": "ray lint"
+  },
+  "dependencies": {
+    "@patrickjs/port-manager": "file:../../packages/core"
+  },
+  "devDependencies": {
+    "@raycast/api": "1.102.7"
+  }
+}
