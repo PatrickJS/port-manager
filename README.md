@@ -43,6 +43,11 @@ try {
 }
 ```
 
+`listListeningPorts()` returns both raw and grouped views:
+
+- `ports[]` is the exact scanner output, one entry per host/protocol binding.
+- `portGroups[]` folds those entries by numeric port for UI and AI display, with `reason`, `owners`, and `bindings` explaining why a row has multiple underlying bindings.
+
 ## Shared Local Instance
 
 Port Manager uses a small file-backed lease registry so cooperating CLI, UI, and npm package calls can see the same soft reservations. By default the registry lives under the current user's temp directory; set `PORT_MANAGER_STATE_DIR` to point multiple processes at an explicit registry during tests or agent runs.
@@ -67,7 +72,7 @@ The generated app bundle stores the workspace path and `pnpm` path in `PortManag
 The local Raycast extension lives in `apps/raycast`. It provides:
 
 - a list command for inspecting ports and killing a selected process,
-- a menu bar command for a quick port count and jump back to the list,
+- a menu bar command for a quick grouped open-port list,
 - AI tools for listing, explaining, finding, and killing ports through Raycast AI.
 
 From `apps/raycast`, run `npm install` and `npm run dev` to import it into Raycast during development. Use `npm run build` when you want Raycast to keep the local extension without the dev server.

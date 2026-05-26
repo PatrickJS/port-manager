@@ -15,6 +15,8 @@ The canonical API avoids runtime dependencies and uses Node built-ins:
 
 The CLI is intentionally JSON-first for agents. Every command supports `--json`, and JSON payloads include a `schemaVersion` field so future changes can be versioned.
 
+`listListeningPorts()` keeps two views in the same payload. `ports[]` is the raw scanner surface, so agents can inspect exact host/protocol bindings. `portGroups[]` is the display surface, folding raw entries by numeric port and carrying `reason`, `owners`, and `bindings` fields so UI rows can stay de-duplicated without hiding the underlying explanation.
+
 ## Shared Contract
 
 The macOS app does not run a separate native scanner. In development it invokes:
