@@ -14,32 +14,14 @@ struct PortManagerCLIClient {
       throw PortManagerCLIError.commandFailed(envelope.error?.message ?? "port-manager list failed")
     }
 
-    return envelope.result.ports.map { entry in
-      let bind = PortBind(
-        id: "\(entry.owner.pid)-\(entry.protocol)-\(entry.host)-\(entry.port)",
-        host: entry.host,
-        port: entry.port,
-        proto: entry.protocol,
-        commonPort: entry.commonPort
-      )
+    if let portGroups = envelope.result.portGroups {
+      return portGroups.map { group in
+        listeningPort(from: group)
+      }
+    }
 
-      return ListeningPort(
-        id: bind.id,
-        pid: entry.owner.pid,
-        status: PortStatus(rawValue: entry.status ?? "listening") ?? .listening,
-        processName: entry.owner.name ?? "",
-        user: entry.owner.user ?? "unknown",
-        uid: entry.owner.uid,
-        parentPid: entry.owner.parentPid,
-        command: entry.owner.command,
-        arguments: entry.owner.args,
-        currentDirectory: entry.owner.cwd,
-        launchOriginator: entry.owner.launchd.originator,
-        binds: [bind],
-        ownershipEvidence: entry.owner.ownership.evidence,
-        ownershipSummaryOverride: entry.owner.ownership.summary,
-        ownershipConfidenceOverride: OwnershipConfidence(rawValue: entry.owner.ownership.confidence.capitalized)
-      )
+    return envelope.result.ports.map { entry in
+      listeningPort(from: entry)
     }
   }
 
@@ -48,13 +30,16 @@ struct PortManagerCLIClient {
       throw PortManagerCLIError.commandFailed("Selected process has no port binding")
     }
 
-    let data = try await runPortManager(arguments: [
+    var arguments = [
       "kill",
-      "\(primaryPort)",
-      "--pid",
-      "\(port.pid)",
-      "--json"
-    ])
+      "\(primaryPort)"
+    ]
+    if port.ownerCount == 1, port.pid > 0 {
+      arguments += ["--pid", "\(port.pid)"]
+    }
+    arguments.append("--json")
+
+    let data = try await runPortManager(arguments: arguments)
     let envelope = try JSONDecoder().decode(CLIEnvelope<KillPortResult>.self, from: data)
     guard envelope.ok else {
       throw PortManagerCLIError.commandFailed(envelope.error?.message ?? "port-manager kill failed")
@@ -81,10 +66,17 @@ struct PortManagerCLIClient {
       process.standardError = stderr
 
       try process.run()
+      let outputTask = Task<Data, Never> {
+        stdout.fileHandleForReading.readDataToEndOfFile()
+      }
+      let errorTask = Task<Data, Never> {
+        stderr.fileHandleForReading.readDataToEndOfFile()
+      }
+
       process.waitUntilExit()
 
-      let output = stdout.fileHandleForReading.readDataToEndOfFile()
-      let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
+      let output = await outputTask.value
+      let errorData = await errorTask.value
 
       guard process.terminationStatus == 0 else {
         let stderrMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -97,6 +89,93 @@ struct PortManagerCLIClient {
 
       return output
     }.value
+  }
+
+  private func listeningPort(from entry: CLIPortEntry) -> ListeningPort {
+    let bind = PortBind(
+      id: "\(entry.owner.pid)-\(entry.protocol)-\(entry.host)-\(entry.port)",
+      host: entry.host,
+      port: entry.port,
+      proto: entry.protocol,
+      commonPort: entry.commonPort,
+      ownerPid: entry.owner.pid,
+      ownerName: entry.owner.name
+    )
+
+    return ListeningPort(
+      id: bind.id,
+      pid: entry.owner.pid,
+      status: PortStatus(rawValue: entry.status ?? "listening") ?? .listening,
+      processName: entry.owner.name ?? "",
+      user: entry.owner.user ?? "unknown",
+      uid: entry.owner.uid,
+      parentPid: entry.owner.parentPid,
+      command: entry.owner.command,
+      arguments: entry.owner.args,
+      currentDirectory: entry.owner.cwd,
+      launchOriginator: entry.owner.launchd.originator,
+      binds: [bind],
+      ownerCount: 1,
+      entryCount: 1,
+      groupReason: nil,
+      ownershipEvidence: entry.owner.ownership.evidence,
+      ownershipSummaryOverride: entry.owner.ownership.summary,
+      ownershipConfidenceOverride: OwnershipConfidence(rawValue: entry.owner.ownership.confidence.capitalized)
+    )
+  }
+
+  private func listeningPort(from group: CLIPortGroup) -> ListeningPort {
+    let primaryOwner = group.owners.first ?? group.entries.first?.owner
+    let binds = group.bindings.map { binding in
+      PortBind(
+        id: "\(group.id)-\(binding.protocol)-\(binding.host)",
+        host: binding.host,
+        port: binding.port,
+        proto: binding.protocol,
+        commonPort: binding.commonPort ?? group.commonPort,
+        ownerPid: binding.ownerPid,
+        ownerName: binding.ownerName
+      )
+    }
+    let evidence = uniqueEvidence([
+      group.reason,
+      group.bindings.map { binding in
+        if let ownerName = binding.ownerName, let ownerPid = binding.ownerPid {
+          return "\(binding.label) owned by \(ownerName) (PID \(ownerPid))"
+        }
+        return binding.label
+      }.joined(separator: ", ")
+    ] + group.entries.flatMap { $0.owner.ownership.evidence })
+
+    return ListeningPort(
+      id: group.id,
+      pid: primaryOwner?.pid ?? 0,
+      status: PortStatus(rawValue: group.status) ?? .listening,
+      processName: group.title,
+      user: group.owners.count == 1 ? primaryOwner?.user ?? "unknown" : "\(group.owners.count) owners",
+      uid: group.owners.count == 1 ? primaryOwner?.uid : nil,
+      parentPid: group.owners.count == 1 ? primaryOwner?.parentPid : nil,
+      command: group.owners.count == 1 ? primaryOwner?.command : nil,
+      arguments: group.owners.count == 1 ? primaryOwner?.args : nil,
+      currentDirectory: group.owners.count == 1 ? primaryOwner?.cwd : nil,
+      launchOriginator: group.owners.count == 1 ? primaryOwner?.launchd.originator : nil,
+      binds: binds,
+      ownerCount: group.owners.count,
+      entryCount: group.entries.count,
+      groupReason: group.reason,
+      ownershipEvidence: evidence,
+      ownershipSummaryOverride: group.reason,
+      ownershipConfidenceOverride: OwnershipConfidence(rawValue: primaryOwner?.ownership.confidence.capitalized ?? "")
+    )
+  }
+
+  private func uniqueEvidence(_ values: [String]) -> [String] {
+    var seen = Set<String>()
+    return values.filter { value in
+      guard !value.isEmpty, !seen.contains(value) else { return false }
+      seen.insert(value)
+      return true
+    }
   }
 }
 
@@ -142,6 +221,31 @@ private struct CLIErrorPayload: Decodable {
 
 private struct CLIListResult: Decodable {
   let ports: [CLIPortEntry]
+  let portGroups: [CLIPortGroup]?
+}
+
+private struct CLIPortGroup: Decodable {
+  let id: String
+  let port: Int
+  let status: String
+  let protocols: [String]
+  let title: String
+  let reason: String
+  let commonPort: CommonPort?
+  let owners: [CLIOwner]
+  let bindings: [CLIGroupBinding]
+  let entries: [CLIPortEntry]
+}
+
+private struct CLIGroupBinding: Decodable {
+  let host: String
+  let port: Int
+  let `protocol`: String
+  let label: String
+  let ownerPid: Int?
+  let ownerName: String?
+  let status: String?
+  let commonPort: CommonPort?
 }
 
 private struct CLIPortEntry: Decodable {

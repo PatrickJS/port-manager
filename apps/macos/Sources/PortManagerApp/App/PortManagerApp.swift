@@ -8,6 +8,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       NSApp.activate(ignoringOtherApps: true)
     } else {
       NSApp.setActivationPolicy(.accessory)
+      DispatchQueue.main.async {
+        NSApp.windows
+          .filter { $0.identifier?.rawValue == "main" || $0.title == "Port Manager" }
+          .forEach { $0.close() }
+      }
     }
   }
 
@@ -15,6 +20,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let arguments = ProcessInfo.processInfo.arguments
     let environment = ProcessInfo.processInfo.environment
     return arguments.contains("--dock") || environment["PORT_MANAGER_DOCK"] == "1"
+  }
+
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    false
   }
 }
 
@@ -28,6 +37,7 @@ struct PortManagerApp: App {
       ContentView()
         .frame(minWidth: 980, minHeight: 620)
     }
+    .defaultLaunchBehavior(.suppressed)
     .commands {
       CommandGroup(replacing: .newItem) {}
       CommandMenu("Ports") {
@@ -41,21 +51,15 @@ struct PortManagerApp: App {
         .keyboardShortcut("k", modifiers: [.command, .shift])
       }
     }
-    MenuBarExtra("Port Manager", systemImage: "network") {
-      Button("Open Port Manager") {
+    MenuBarExtra {
+      MenuBarPortsView {
         openWindow(id: "main")
         NSApp.activate(ignoringOtherApps: true)
       }
-      Divider()
-      Button("Refresh Ports") {
-        NotificationCenter.default.post(name: .refreshPortsRequested, object: nil)
-      }
-      Button("Kill Selected Port") {
-        NotificationCenter.default.post(name: .killSelectedPortRequested, object: nil)
-      }
-      Divider()
-      Button("Quit Port Manager") {
-        NSApp.terminate(nil)
+    } label: {
+      ZStack {
+        Image(systemName: "chart.bar.xaxis")
+        Image(systemName: "slash")
       }
     }
   }

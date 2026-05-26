@@ -14,6 +14,7 @@ export {
 
 export {
   explainPort,
+  groupPortEntries,
   listListeningPorts,
 } from "./explain.js";
 

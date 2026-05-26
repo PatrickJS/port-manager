@@ -13,30 +13,32 @@ import {
 } from "@raycast/api";
 import { useEffect, useState } from "react";
 import {
-  bindingLabel,
-  canKill,
+  canKillGroup,
+  groupedPorts,
+  killOptionsForGroup,
   killPort,
   listListeningPorts,
-  ListeningPortEntry,
-  portTitle,
+  ListeningPortGroup,
+  portGroupBindings,
+  portGroupTitle,
 } from "./port-manager";
 
 type State = {
   isLoading: boolean;
-  ports: ListeningPortEntry[];
+  portGroups: ListeningPortGroup[];
   error?: Error;
 };
 
 export default function Command() {
-  const [state, setState] = useState<State>({ isLoading: true, ports: [] });
+  const [state, setState] = useState<State>({ isLoading: true, portGroups: [] });
 
   useEffect(() => {
     listListeningPorts()
-      .then((result) => setState({ isLoading: false, ports: result.ports }))
-      .catch((error) => setState({ isLoading: false, ports: [], error: error as Error }));
+      .then((result) => setState({ isLoading: false, portGroups: groupedPorts(result) }))
+      .catch((error) => setState({ isLoading: false, portGroups: [], error: error as Error }));
   }, []);
 
-  const visiblePorts = state.ports.slice(0, 30);
+  const visiblePortGroups = state.portGroups.slice(0, 30);
 
   return (
     <MenuBarExtra icon={Icon.Network} isLoading={state.isLoading}>
@@ -44,10 +46,10 @@ export default function Command() {
         {state.error ? (
           <MenuBarExtra.Item title="Port scan failed" subtitle={truncate(state.error.message, 30)} />
         ) : null}
-        {visiblePorts.map((entry) => (
-          <PortMenuItem key={`${entry.owner.pid}-${entry.host}-${entry.port}`} entry={entry} />
+        {visiblePortGroups.map((group) => (
+          <PortMenuItem key={group.id} group={group} />
         ))}
-        {!state.error && visiblePorts.length === 0 && !state.isLoading ? (
+        {!state.error && visiblePortGroups.length === 0 && !state.isLoading ? (
           <MenuBarExtra.Item title="No Open Ports" />
         ) : null}
       </MenuBarExtra.Section>
@@ -64,14 +66,14 @@ export default function Command() {
   );
 }
 
-function PortMenuItem(props: { entry: ListeningPortEntry }) {
-  const { entry } = props;
-  const title = truncate(`${entry.port} • ${portTitle(entry)}`, 30);
+function PortMenuItem(props: { group: ListeningPortGroup }) {
+  const { group } = props;
+  const title = truncate(`${group.port} • ${portGroupTitle(group)}`, 30);
 
   async function killSelected() {
     const confirmed = await confirmAlert({
       title: "Kill Port?",
-      message: `Send SIGTERM to ${portTitle(entry)} (PID ${entry.owner.pid}) for ${bindingLabel(entry)}.`,
+      message: `Send SIGTERM to ${group.owners.length === 1 ? portGroupTitle(group) : `${group.owners.length} owners`} for port ${group.port}.`,
       primaryAction: {
         title: "Kill Port",
         style: Alert.ActionStyle.Destructive,
@@ -84,7 +86,7 @@ function PortMenuItem(props: { entry: ListeningPortEntry }) {
 
     const toast = await showToast({ style: Toast.Style.Animated, title: "Killing port owner" });
     try {
-      const result = await killPort({ port: entry.port, host: entry.host, pid: entry.owner.pid });
+      const result = await killPort(killOptionsForGroup(group));
       toast.style = Toast.Style.Success;
       toast.title = result.killed.length > 0 ? "Kill signal sent" : "No process killed";
       toast.message = result.killed.map((process) => process.name ?? `PID ${process.pid}`).join(", ");
@@ -97,17 +99,29 @@ function PortMenuItem(props: { entry: ListeningPortEntry }) {
 
   return (
     <MenuBarExtra.Submenu title={title}>
-      <MenuBarExtra.Item title={truncate(portTitle(entry), 30)} />
-      <MenuBarExtra.Item title={truncate(bindingLabel(entry), 30)} />
-      <MenuBarExtra.Item title={truncate(`PID ${entry.owner.pid}`, 30)} />
-      {entry.commonPort ? <MenuBarExtra.Item title={truncate(entry.commonPort.name, 30)} /> : null}
+      <MenuBarExtra.Item title={truncate(portGroupTitle(group), 30)} />
+      <MenuBarExtra.Item title={truncate(group.reason, 30)} />
+      {group.bindings.map((binding) => (
+        <MenuBarExtra.Item
+          key={`${binding.protocol}-${binding.host}-${binding.port}-${binding.ownerPid ?? "owner"}`}
+          title={truncate(bindingTitle(binding), 30)}
+        />
+      ))}
+      {group.commonPort ? <MenuBarExtra.Item title={truncate(group.commonPort.name, 30)} /> : null}
       <MenuBarExtra.Separator />
-      <MenuBarExtra.Item title="Copy Binding" icon={Icon.Clipboard} onAction={() => Clipboard.copy(bindingLabel(entry))} />
-      {canKill(entry) ? (
+      <MenuBarExtra.Item title={group.bindings.length === 1 ? "Copy Binding" : "Copy Bindings"} icon={Icon.Clipboard} onAction={() => Clipboard.copy(portGroupBindings(group))} />
+      {canKillGroup(group) ? (
         <MenuBarExtra.Item title="Kill Port" icon={Icon.XMarkCircle} onAction={killSelected} />
       ) : null}
     </MenuBarExtra.Submenu>
   );
+}
+
+function bindingTitle(binding: ListeningPortGroup["bindings"][number]) {
+  const owner = binding.ownerName && binding.ownerPid
+    ? ` · ${binding.ownerName} (PID ${binding.ownerPid})`
+    : "";
+  return `${binding.label}${owner}`;
 }
 
 function truncate(value: string, maxLength: number) {

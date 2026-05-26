@@ -10,6 +10,8 @@ import {
   findAvailablePort,
   isPortAvailable,
   killPort,
+  groupPortEntries,
+  listListeningPorts,
   listPortReservations,
   reservePort,
 } from "@patrickjs/port-manager";
@@ -116,6 +118,79 @@ test("explainPort returns a stable JSON shape", async () => {
   } finally {
     await reservation.release();
   }
+});
+
+test("groupPortEntries folds duplicate bindings under one numeric port", () => {
+  const postgres = {
+    pid: 101,
+    name: "postgres",
+    user: "patrickjs",
+    uid: 501,
+    parentPid: 1,
+    command: "/opt/homebrew/bin/postgres",
+    args: "postgres -D /opt/homebrew/var/postgresql",
+    cwd: "/opt/homebrew/var/postgresql",
+    launchd: { originator: null },
+    binds: [
+      { host: "[::1]", port: 5432, protocol: "TCP" },
+      { host: "127.0.0.1", port: 5432, protocol: "TCP" },
+    ],
+    ownership: {
+      confidence: "high",
+      summary: "postgres owns [::1]:5432, 127.0.0.1:5432",
+      evidence: ["lsof reported PID 101"],
+    },
+  };
+  const vite = {
+    ...postgres,
+    pid: 202,
+    name: "node",
+    command: "node",
+    args: "vite --host 0.0.0.0 --port 5178",
+    cwd: "/work/app",
+    binds: [{ host: "*", port: 5178, protocol: "TCP" }],
+    ownership: {
+      confidence: "high",
+      summary: "node owns *:5178",
+      evidence: ["lsof reported PID 202"],
+    },
+  };
+  const staticServer = {
+    ...vite,
+    pid: 303,
+    binds: [{ host: "127.0.0.1", port: 5178, protocol: "TCP" }],
+    ownership: {
+      confidence: "high",
+      summary: "node owns 127.0.0.1:5178",
+      evidence: ["lsof reported PID 303"],
+    },
+  };
+
+  const groups = groupPortEntries([
+    { port: 5432, host: "[::1]", protocol: "TCP", owner: postgres, commonPort: { name: "PostgreSQL", expectedApps: ["postgres"] } },
+    { port: 5432, host: "127.0.0.1", protocol: "TCP", owner: postgres, commonPort: { name: "PostgreSQL", expectedApps: ["postgres"] } },
+    { port: 5178, host: "*", protocol: "TCP", owner: vite, commonPort: null },
+    { port: 5178, host: "127.0.0.1", protocol: "TCP", owner: staticServer, commonPort: null },
+  ]);
+
+  assert.deepEqual(groups.map((group) => group.port), [5178, 5432]);
+  assert.equal(groups[0].entries.length, 2);
+  assert.equal(groups[0].owners.length, 2);
+  assert.equal(groups[0].title, "node + 1 more");
+  assert.equal(groups[0].reason, "2 owners across 2 bindings");
+  assert.equal(groups[1].entries.length, 2);
+  assert.equal(groups[1].owners.length, 1);
+  assert.equal(groups[1].title, "postgres");
+  assert.equal(groups[1].reason, "1 owner across 2 bindings");
+  assert.deepEqual(groups[1].bindings.map((bind) => bind.label), ["[::1]:5432", "127.0.0.1:5432"]);
+});
+
+test("listListeningPorts includes grouped display rows", async () => {
+  const result = await listListeningPorts();
+
+  assert.equal(Array.isArray(result.ports), true);
+  assert.equal(Array.isArray(result.portGroups), true);
+  assert.equal(result.portGroups.length <= result.ports.length, true);
 });
 
 test("killPort rejects a port with no process owner", async () => {

@@ -41,7 +41,9 @@ struct PortDetailView: View {
     [
       MetadataRow(label: "Process", value: port.title),
       MetadataRow(label: "Status", value: port.status.label),
-      MetadataRow(label: "PID", value: "\(port.pid)"),
+      MetadataRow(label: "Owners", value: "\(port.ownerCount)"),
+      MetadataRow(label: "Bindings", value: "\(port.entryCount)"),
+      MetadataRow(label: "PID", value: port.ownerCount == 1 ? "\(port.pid)" : "Multiple"),
       MetadataRow(label: "User", value: port.uid.map { "\(port.user) (\($0))" } ?? port.user),
       MetadataRow(label: "Parent PID", value: port.parentPid.map(String.init) ?? "Unknown"),
       MetadataRow(label: "Confidence", value: port.confidence.rawValue),
@@ -72,7 +74,7 @@ private struct HeaderSection: View {
       HStack(spacing: 8) {
         Label(port.status.label, systemImage: port.status == .reserved ? "lock" : "network")
         Label(port.confidence.rawValue, systemImage: "checkmark.seal")
-        Text(verbatim: "PID \(port.pid)")
+        Text(verbatim: port.ownerCount == 1 ? "PID \(port.pid)" : "\(port.ownerCount) owners")
         Text(port.user)
       }
       .font(.caption)
@@ -101,6 +103,12 @@ private struct BindRow: View {
       Text(bind.proto)
         .font(.caption)
         .foregroundStyle(.secondary)
+
+      if let ownerLabel = bind.ownerLabel {
+        Text(ownerLabel)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
 
       if let commonPort = bind.commonPort {
         Text(commonPort.name)

@@ -27,6 +27,7 @@ final class PortStore {
         port.command ?? "",
         port.arguments ?? "",
         port.binds.map { "\($0.host):\($0.port)" }.joined(separator: " "),
+        port.binds.compactMap(\.ownerName).joined(separator: " "),
         port.binds.compactMap(\.commonPort?.name).joined(separator: " ")
       ].joined(separator: " ").localizedLowercase
       return haystack.contains(query.localizedLowercase)

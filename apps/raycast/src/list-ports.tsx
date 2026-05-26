@@ -12,31 +12,33 @@ import {
 } from "@raycast/api";
 import { useEffect, useMemo, useState } from "react";
 import {
-  bindingLabel,
-  canKill,
+  canKillGroup,
+  groupedPorts,
+  killOptionsForGroup,
   killPort,
   listListeningPorts,
-  ListeningPortEntry,
-  portSubtitle,
-  portTitle,
+  ListeningPortGroup,
+  portGroupBindings,
+  portGroupSubtitle,
+  portGroupTitle,
 } from "./port-manager";
 
 type State = {
   isLoading: boolean;
-  ports: ListeningPortEntry[];
+  portGroups: ListeningPortGroup[];
   error?: Error;
 };
 
 export default function Command() {
-  const [state, setState] = useState<State>({ isLoading: true, ports: [] });
+  const [state, setState] = useState<State>({ isLoading: true, portGroups: [] });
 
   async function refresh() {
     setState((current) => ({ ...current, isLoading: true, error: undefined }));
     try {
       const result = await listListeningPorts();
-      setState({ isLoading: false, ports: result.ports });
+      setState({ isLoading: false, portGroups: groupedPorts(result) });
     } catch (error) {
-      setState({ isLoading: false, ports: [], error: error as Error });
+      setState({ isLoading: false, portGroups: [], error: error as Error });
     }
   }
 
@@ -45,10 +47,10 @@ export default function Command() {
   }, []);
 
   const sections = useMemo(() => {
-    const listening = state.ports.filter((entry) => entry.status !== "reserved");
-    const reserved = state.ports.filter((entry) => entry.status === "reserved");
+    const listening = state.portGroups.filter((group) => group.status !== "reserved");
+    const reserved = state.portGroups.filter((group) => group.status === "reserved");
     return { listening, reserved };
-  }, [state.ports]);
+  }, [state.portGroups]);
 
   return (
     <List isLoading={state.isLoading} searchBarPlaceholder="Search ports, apps, users, paths">
@@ -56,27 +58,27 @@ export default function Command() {
         <List.EmptyView icon={Icon.Warning} title="Port Manager failed" description={state.error.message} />
       ) : null}
       <List.Section title="Listening" subtitle={`${sections.listening.length}`}>
-        {sections.listening.map((entry) => (
-          <PortItem key={`${entry.owner.pid}-${entry.host}-${entry.port}`} entry={entry} onRefresh={refresh} />
+        {sections.listening.map((group) => (
+          <PortItem key={group.id} group={group} onRefresh={refresh} />
         ))}
       </List.Section>
       <List.Section title="Reserved" subtitle={`${sections.reserved.length}`}>
-        {sections.reserved.map((entry) => (
-          <PortItem key={`${entry.owner.pid}-${entry.host}-${entry.port}`} entry={entry} onRefresh={refresh} />
+        {sections.reserved.map((group) => (
+          <PortItem key={group.id} group={group} onRefresh={refresh} />
         ))}
       </List.Section>
     </List>
   );
 }
 
-function PortItem(props: { entry: ListeningPortEntry; onRefresh: () => Promise<void> }) {
-  const { entry, onRefresh } = props;
+function PortItem(props: { group: ListeningPortGroup; onRefresh: () => Promise<void> }) {
+  const { group, onRefresh } = props;
   const accessories: List.Item.Accessory[] = [
-    { text: entry.commonPort?.name },
+    { text: group.commonPort?.name },
     {
       tag: {
-        value: entry.status === "reserved" ? "Reserved" : "Listening",
-        color: entry.status === "reserved" ? Color.Orange : Color.Green,
+        value: group.status === "reserved" ? "Reserved" : "Listening",
+        color: group.status === "reserved" ? Color.Orange : Color.Green,
       },
     },
   ];
@@ -84,7 +86,7 @@ function PortItem(props: { entry: ListeningPortEntry; onRefresh: () => Promise<v
   async function killSelected() {
     const confirmed = await confirmAlert({
       title: "Kill Port?",
-      message: `Send SIGTERM to ${portTitle(entry)} (PID ${entry.owner.pid}) for ${bindingLabel(entry)}.`,
+      message: `Send SIGTERM to ${group.owners.length === 1 ? portGroupTitle(group) : `${group.owners.length} owners`} for port ${group.port}.`,
       primaryAction: {
         title: "Kill Port",
         style: Alert.ActionStyle.Destructive,
@@ -97,7 +99,7 @@ function PortItem(props: { entry: ListeningPortEntry; onRefresh: () => Promise<v
 
     const toast = await showToast({ style: Toast.Style.Animated, title: "Killing port owner" });
     try {
-      const result = await killPort({ port: entry.port, host: entry.host, pid: entry.owner.pid });
+      const result = await killPort(killOptionsForGroup(group));
       toast.style = Toast.Style.Success;
       toast.title = result.killed.length > 0 ? "Kill signal sent" : "No process killed";
       toast.message = result.killed.map((process) => process.name ?? `PID ${process.pid}`).join(", ");
@@ -111,35 +113,38 @@ function PortItem(props: { entry: ListeningPortEntry; onRefresh: () => Promise<v
 
   return (
     <List.Item
-      title={portTitle(entry)}
-      subtitle={portSubtitle(entry)}
-      icon={entry.status === "reserved" ? Icon.Lock : Icon.Network}
+      title={portGroupTitle(group)}
+      subtitle={portGroupSubtitle(group)}
+      icon={group.status === "reserved" ? Icon.Lock : Icon.Network}
       accessories={accessories}
       detail={
         <List.Item.Detail
           markdown={[
-            `# ${portTitle(entry)}`,
+            `# ${group.port} - ${portGroupTitle(group)}`,
             "",
-            `**Binding:** ${bindingLabel(entry)}`,
-            `**PID:** ${entry.owner.pid}`,
-            `**User:** ${entry.owner.user ?? "unknown"}`,
-            `**Command:** ${entry.owner.command ?? "unknown"}`,
-            `**Working Directory:** ${entry.owner.cwd ?? "unknown"}`,
+            `**Reason:** ${group.reason}`,
+            `**Bindings:** ${portGroupBindings(group)}`,
+            "",
+            "## Owners",
+            ...group.owners.map((owner) => `- ${owner.name ?? `PID ${owner.pid}`} (PID ${owner.pid})`),
+            "",
+            "## Bindings",
+            ...group.bindings.map((binding) => `- ${bindingTitle(binding)}`),
             "",
             "## Evidence",
-            ...entry.owner.ownership.evidence.map((line) => `- ${line}`),
+            ...group.entries.flatMap((entry) => entry.owner.ownership.evidence.map((line) => `- ${line}`)),
           ].join("\n")}
         />
       }
       actions={
         <ActionPanel>
-          <Action.CopyToClipboard title="Copy Binding" content={bindingLabel(entry)} />
+          <Action.CopyToClipboard title={group.bindings.length === 1 ? "Copy Binding" : "Copy Bindings"} content={portGroupBindings(group)} />
           <Action
             title="Copy JSON"
             icon={Icon.Clipboard}
-            onAction={() => Clipboard.copy(JSON.stringify(entry, null, 2))}
+            onAction={() => Clipboard.copy(JSON.stringify(group, null, 2))}
           />
-          {canKill(entry) ? (
+          {canKillGroup(group) ? (
             <Action
               title="Kill Port"
               icon={Icon.XMarkCircle}
@@ -153,4 +158,11 @@ function PortItem(props: { entry: ListeningPortEntry; onRefresh: () => Promise<v
       }
     />
   );
+}
+
+function bindingTitle(binding: ListeningPortGroup["bindings"][number]) {
+  const owner = binding.ownerName && binding.ownerPid
+    ? ` - ${binding.ownerName} (PID ${binding.ownerPid})`
+    : "";
+  return `${binding.label}${owner}`;
 }

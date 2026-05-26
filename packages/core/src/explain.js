@@ -78,12 +78,109 @@ export async function listListeningPorts() {
     });
   }
 
+  const sortedPorts = ports.sort((a, b) => a.port - b.port || a.host.localeCompare(b.host));
+
   return {
     schemaVersion: "2026-05-26.port-manager.list.v1",
     generatedAt: new Date().toISOString(),
     reservations,
-    ports: ports.sort((a, b) => a.port - b.port || a.host.localeCompare(b.host)),
+    ports: sortedPorts,
+    portGroups: groupPortEntries(sortedPorts),
   };
+}
+
+export function groupPortEntries(entries) {
+  const groups = new Map();
+
+  for (const entry of entries) {
+    let group = groups.get(entry.port);
+    if (!group) {
+      group = {
+        port: entry.port,
+        entries: [],
+        ownersByKey: new Map(),
+        bindingsByKey: new Map(),
+        protocols: new Set(),
+        statuses: new Set(),
+        commonPort: null,
+      };
+      groups.set(entry.port, group);
+    }
+
+    group.entries.push(entry);
+    group.protocols.add(entry.protocol);
+    group.statuses.add(entry.status ?? "listening");
+    group.commonPort ??= entry.commonPort ?? null;
+
+    const ownerKey = ownerGroupKey(entry.owner);
+    if (!group.ownersByKey.has(ownerKey)) {
+      group.ownersByKey.set(ownerKey, entry.owner);
+    }
+
+    const bindingKey = `${entry.protocol}:${entry.host}:${entry.port}`;
+    if (!group.bindingsByKey.has(bindingKey)) {
+      group.bindingsByKey.set(bindingKey, {
+        host: entry.host,
+        port: entry.port,
+        protocol: entry.protocol,
+        label: `${entry.host}:${entry.port}`,
+        ownerPid: entry.owner.pid,
+        ownerName: ownerTitle(entry.owner),
+        status: entry.status ?? "listening",
+        commonPort: entry.commonPort ?? null,
+      });
+    }
+  }
+
+  return Array.from(groups.values())
+    .sort((a, b) => a.port - b.port)
+    .map(finalizePortGroup);
+}
+
+function finalizePortGroup(group) {
+  const owners = Array.from(group.ownersByKey.values())
+    .sort((a, b) => a.pid - b.pid || ownerTitle(a).localeCompare(ownerTitle(b)));
+  const bindings = Array.from(group.bindingsByKey.values())
+    .sort((a, b) => a.host.localeCompare(b.host) || a.protocol.localeCompare(b.protocol));
+  const entries = [...group.entries]
+    .sort((a, b) => a.host.localeCompare(b.host) || a.owner.pid - b.owner.pid);
+  const statuses = Array.from(group.statuses).sort();
+
+  return {
+    id: `port-${group.port}`,
+    port: group.port,
+    status: statuses.length === 1 ? statuses[0] : "mixed",
+    protocols: Array.from(group.protocols).sort(),
+    title: groupTitle(owners),
+    reason: `${owners.length} ${pluralize("owner", owners.length)} across ${bindings.length} ${pluralize("binding", bindings.length)}`,
+    commonPort: group.commonPort,
+    owners,
+    bindings,
+    entries,
+  };
+}
+
+function ownerGroupKey(owner) {
+  return owner.pid > 0 ? `pid:${owner.pid}` : `${owner.name ?? "owner"}:${owner.command ?? ""}`;
+}
+
+function groupTitle(owners) {
+  if (owners.length === 0) {
+    return "Unknown";
+  }
+  const first = ownerTitle(owners[0]);
+  if (owners.length === 1) {
+    return first;
+  }
+  return `${first} + ${owners.length - 1} more`;
+}
+
+function ownerTitle(owner) {
+  return owner.name || `PID ${owner.pid}`;
+}
+
+function pluralize(word, count) {
+  return count === 1 ? word : `${word}s`;
 }
 
 async function inspectPortOwners(port) {

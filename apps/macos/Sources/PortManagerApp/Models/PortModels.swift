@@ -13,6 +13,9 @@ struct ListeningPort: Identifiable, Hashable {
   let currentDirectory: String?
   let launchOriginator: String?
   let binds: [PortBind]
+  let ownerCount: Int
+  let entryCount: Int
+  let groupReason: String?
   let ownershipEvidence: [String]
   let ownershipSummaryOverride: String?
   let ownershipConfidenceOverride: OwnershipConfidence?
@@ -45,7 +48,7 @@ struct ListeningPort: Identifiable, Hashable {
   }
 
   var canKill: Bool {
-    status == .listening && pid > 0
+    status != .reserved && primaryPort != nil && ownerCount > 0
   }
 
   var primaryPort: Int? {
@@ -56,11 +59,24 @@ struct ListeningPort: Identifiable, Hashable {
     guard let bind = binds.first else { return "unknown port" }
     return "\(bind.host):\(bind.port)"
   }
+
+  var bindingLabels: String {
+    binds.map { "\($0.host):\($0.port)" }.joined(separator: ", ")
+  }
+
+  var killDescription: String {
+    guard let primaryPort else { return "unknown port" }
+    if ownerCount == 1 {
+      return "PID \(pid) for \(primaryBindingLabel)"
+    }
+    return "\(ownerCount) owners for port \(primaryPort)"
+  }
 }
 
 enum PortStatus: String {
   case listening
   case reserved
+  case mixed
 
   var label: String {
     switch self {
@@ -68,6 +84,8 @@ enum PortStatus: String {
       return "Listening"
     case .reserved:
       return "Reserved"
+    case .mixed:
+      return "Mixed"
     }
   }
 }
@@ -78,6 +96,16 @@ struct PortBind: Identifiable, Hashable {
   let port: Int
   let proto: String
   let commonPort: CommonPort?
+  let ownerPid: Int?
+  let ownerName: String?
+
+  var ownerLabel: String? {
+    guard let ownerPid else { return ownerName }
+    if let ownerName, !ownerName.isEmpty {
+      return "\(ownerName) (PID \(ownerPid))"
+    }
+    return "PID \(ownerPid)"
+  }
 }
 
 struct CommonPort: Codable, Hashable {

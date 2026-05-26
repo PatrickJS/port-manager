@@ -30,11 +30,38 @@ declare module "@patrickjs/port-manager" {
     commonPort: CommonPort;
   };
 
+  export type PortGroupBinding = {
+    host: string;
+    port: number;
+    protocol: string;
+    label: string;
+    ownerPid: number | null;
+    ownerName: string | null;
+    status?: "listening" | "reserved";
+    commonPort: CommonPort;
+  };
+
+  export type ListeningPortGroup = {
+    id: string;
+    port: number;
+    status: "listening" | "reserved" | "mixed";
+    protocols: string[];
+    title: string;
+    reason: string;
+    commonPort: CommonPort;
+    owners: PortOwner[];
+    bindings: PortGroupBinding[];
+    entries: ListeningPortEntry[];
+  };
+
   export function listListeningPorts(): Promise<{
     schemaVersion: string;
     generatedAt: string;
     ports: ListeningPortEntry[];
+    portGroups: ListeningPortGroup[];
   }>;
+
+  export function groupPortEntries(entries: ListeningPortEntry[]): ListeningPortGroup[];
 
   export function explainPort(options: { port: number; host?: string }): Promise<{
     schemaVersion: string;

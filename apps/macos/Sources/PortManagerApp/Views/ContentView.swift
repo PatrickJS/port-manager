@@ -45,7 +45,7 @@ struct ContentView: View {
         Task { await store.kill(port) }
       }
     } message: { port in
-      Text("Send SIGTERM to PID \(port.pid) for \(port.primaryBindingLabel).")
+      Text("Send SIGTERM to \(port.killDescription).")
     }
     .task {
       await store.refresh()
