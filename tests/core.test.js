@@ -45,6 +45,17 @@ test("reservePort holds the port until release", async () => {
   assert.equal(await isPortAvailable({ port: reservation.port }), true);
 });
 
+test("checkPort reports unavailable ports separately from in-use ports", async () => {
+  const status = await checkPort({ port: 9 });
+
+  if (status.status === "unavailable") {
+    assert.equal(status.inUse, false);
+    assert.equal(typeof status.errorCode, "string");
+  } else {
+    assert.ok(["closed", "open"].includes(status.status));
+  }
+});
+
 test("reserved get-port style locks can be cleared", async () => {
   clearLockedPorts();
   const first = await findAvailablePort({ port: 43000, stopPort: 43010, reserve: true });
@@ -70,4 +81,3 @@ test("explainPort returns a stable JSON shape", async () => {
     await reservation.release();
   }
 });
-

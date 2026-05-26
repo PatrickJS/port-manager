@@ -41,20 +41,21 @@ export async function isPortAvailable(options) {
     return false;
   }
 
-  const attempt = await listen({ port, host, keepOpen: false });
-  return attempt.ok;
+  const status = await getPortStatus({ port, host });
+  return status.status === "closed";
 }
 
 export async function checkPort(options) {
   const normalized = normalizeOptions(options);
-  const available = await isPortAvailable(normalized);
+  const status = await getPortStatus(normalized);
 
   return {
     schemaVersion: "2026-05-26.port-manager.check.v1",
     host: normalized.host,
     port: normalized.port,
-    inUse: !available,
-    status: available ? "closed" : "open",
+    inUse: status.status === "open",
+    status: status.status,
+    errorCode: status.errorCode ?? null,
   };
 }
 
@@ -159,6 +160,21 @@ export async function waitForPort(options) {
     status,
     timeoutMs,
   });
+}
+
+async function getPortStatus({ port, host = DEFAULT_HOST }) {
+  if (lockedPorts.has(port)) {
+    return { status: "open" };
+  }
+
+  const attempt = await listen({ port, host, keepOpen: false });
+  if (attempt.ok) {
+    return { status: "closed" };
+  }
+  if (attempt.error?.code === "EADDRINUSE") {
+    return { status: "open", errorCode: attempt.error.code };
+  }
+  return { status: "unavailable", errorCode: attempt.error?.code ?? "UNKNOWN" };
 }
 
 function normalizeOptions(options) {
@@ -292,4 +308,3 @@ function randomEphemeralPort() {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-

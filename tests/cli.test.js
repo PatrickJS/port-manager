@@ -22,11 +22,10 @@ test("CLI explain emits stable JSON", () => {
     encoding: "utf8",
   });
 
-  assert.equal([0, 1].includes(result.status), true, result.stderr);
+  assert.equal(result.status, 0, result.stderr);
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.schemaVersion, "2026-05-26.port-manager.cli.v1");
   assert.equal(payload.ok, true);
   assert.equal(payload.command, "explain");
   assert.equal(payload.result.query.port, 9);
 });
-

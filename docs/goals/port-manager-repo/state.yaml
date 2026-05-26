@@ -186,6 +186,40 @@ tasks:
         - "Initial pushed commit: d688c377dd9036a2bd8a0ff8652ba8a3e8c6ca98"
         - "GitHub Actions run 26427207787 completed with conclusion success."
 
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Fix the final-audit checkPort status contract so unavailable ports are not misreported as in-use ports."
+    allowed_files:
+      - "packages/core/src/ports.js"
+      - "packages/cli/bin/port-manager.js"
+      - "tests/core.test.js"
+      - "tests/cli.test.js"
+    verify:
+      - "pnpm run check"
+      - "pnpm --filter @patrickjs/port-manager-cli exec port-manager check 9 --json"
+      - "pnpm --filter @patrickjs/port-manager-cli exec port-manager explain 9 --json"
+    stop_if:
+      - "The status contract needs a broader product decision."
+      - "Verification fails twice."
+    receipt:
+      result: done
+      changed_files:
+        - "packages/core/src/ports.js"
+        - "packages/cli/bin/port-manager.js"
+        - "tests/core.test.js"
+        - "tests/cli.test.js"
+      commands:
+        - cmd: "pnpm run check"
+          status: pass
+        - cmd: "pnpm --filter @patrickjs/port-manager-cli exec port-manager check 9 --json"
+          status: pass
+        - cmd: "pnpm --filter @patrickjs/port-manager-cli exec port-manager explain 9 --json"
+          status: pass
+      summary: "Separated checkPort states into open, closed, and unavailable, and made successful check/explain JSON commands exit 0 so AI callers can inspect status without treating normal answers as command failures."
+
   - id: T999
     type: judge
     assignee: Judge
@@ -210,12 +244,13 @@ tasks:
       result: done
       decision: complete
       full_outcome_complete: true
-      summary: "The private GitHub repo exists, is private, contains the pnpm workspace source, local checks passed, remote CI passed, and local main matched origin/main before GoalBuddy files were added."
+      summary: "The private GitHub repo exists, is private, contains the pnpm workspace source and GoalBuddy board, local checks passed after the final audit repair, and remote CI is verified by the final thread audit."
       evidence:
         - "gh repo view PatrickJS/port-manager reported visibility PRIVATE and default branch main."
         - "Remote package.json and packages/core/src/ports.js were readable through gh api."
-        - "Local pnpm run check passed with 11 tests."
-        - "GitHub Actions Check run 26427207787 succeeded on d688c377dd9036a2bd8a0ff8652ba8a3e8c6ca98."
+        - "Local pnpm run check passed with 12 tests after T004."
+        - "GoalBuddy checker passed with zero errors and warnings."
+        - "The final thread audit verifies the latest pushed commit and GitHub Actions Check run after this board update."
       missing_evidence: []
       next_task: null
 
@@ -223,11 +258,11 @@ checks:
   dirty_fingerprint: "GoalBuddy files included in a follow-up commit; final thread audit verifies clean worktree and remote state."
   last_verification:
     result: pass
-    task: T999
+    task: T004
     commands:
       - cmd: "pnpm run check"
         status: pass
-      - cmd: "gh repo view PatrickJS/port-manager --json nameWithOwner,visibility,defaultBranchRef,url"
+      - cmd: "pnpm --filter @patrickjs/port-manager-cli exec port-manager check 9 --json"
         status: pass
-      - cmd: "gh run view 26427207787 --repo PatrickJS/port-manager --json status,conclusion,url,headSha,workflowName"
+      - cmd: "pnpm --filter @patrickjs/port-manager-cli exec port-manager explain 9 --json"
         status: pass

@@ -48,7 +48,6 @@ async function main(argv) {
     const port = requiredPort(args.positionals[0], command);
     const result = await checkPort({ port, host: args.host });
     printResult({ ok: true, command, result }, args.json);
-    process.exitCode = result.inUse ? 0 : 1;
     return;
   }
 
@@ -56,7 +55,6 @@ async function main(argv) {
     const port = requiredPort(args.positionals[0], command);
     const result = await explainPort({ port, host: args.host });
     printResult({ ok: true, command, result }, args.json);
-    process.exitCode = result.status === "inUse" ? 0 : 1;
     return;
   }
 
@@ -176,4 +174,3 @@ function printHelp() {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
