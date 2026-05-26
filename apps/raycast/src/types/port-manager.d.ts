@@ -41,6 +41,12 @@ declare module "@patrickjs/port-manager" {
     commonPort: CommonPort;
   };
 
+  export type PortDisplayGroup = {
+    id: string;
+    name: string;
+    rank: number;
+  };
+
   export type ListeningPortGroup = {
     id: string;
     port: number;
@@ -49,6 +55,7 @@ declare module "@patrickjs/port-manager" {
     title: string;
     reason: string;
     commonPort: CommonPort;
+    displayGroup: PortDisplayGroup;
     owners: PortOwner[];
     bindings: PortGroupBinding[];
     entries: ListeningPortEntry[];

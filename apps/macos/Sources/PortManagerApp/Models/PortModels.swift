@@ -16,6 +16,7 @@ struct ListeningPort: Identifiable, Hashable {
   let ownerCount: Int
   let entryCount: Int
   let groupReason: String?
+  let displayGroup: PortDisplayGroup
   let ownershipEvidence: [String]
   let ownershipSummaryOverride: String?
   let ownershipConfidenceOverride: OwnershipConfidence?
@@ -71,6 +72,14 @@ struct ListeningPort: Identifiable, Hashable {
     }
     return "\(ownerCount) owners for port \(primaryPort)"
   }
+}
+
+struct PortDisplayGroup: Codable, Hashable {
+  let id: String
+  let name: String
+  let rank: Int
+
+  static let other = PortDisplayGroup(id: "other", name: "Other", rank: 100)
 }
 
 enum PortStatus: String {

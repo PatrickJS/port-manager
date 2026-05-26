@@ -185,6 +185,42 @@ test("groupPortEntries folds duplicate bindings under one numeric port", () => {
   assert.deepEqual(groups[1].bindings.map((bind) => bind.label), ["[::1]:5432", "127.0.0.1:5432"]);
 });
 
+test("groupPortEntries assigns default display groups", () => {
+  const owner = (overrides) => ({
+    pid: overrides.pid,
+    name: overrides.name,
+    user: "patrickjs",
+    uid: 501,
+    parentPid: 1,
+    command: overrides.command ?? overrides.name,
+    args: overrides.args ?? overrides.command ?? overrides.name,
+    cwd: overrides.cwd ?? "/",
+    launchd: { originator: overrides.originator ?? null },
+    binds: [{ host: "127.0.0.1", port: overrides.port, protocol: "TCP" }],
+    ownership: {
+      confidence: "high",
+      summary: `${overrides.name} owns 127.0.0.1:${overrides.port}`,
+      evidence: [`lsof reported PID ${overrides.pid}`],
+    },
+  });
+
+  const groups = groupPortEntries([
+    { port: 5173, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 10, name: "node", port: 5173, args: "vite --port 5173" }), commonPort: { name: "Vite dev server", expectedApps: ["Vite", "Node.js"] } },
+    { port: 5432, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 11, name: "postgres", port: 5432 }), commonPort: { name: "PostgreSQL", expectedApps: ["postgres"] } },
+    { port: 11434, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 12, name: "ollama", port: 11434 }), commonPort: { name: "Ollama", expectedApps: ["ollama"] } },
+    { port: 443, host: "*", protocol: "TCP", owner: owner({ pid: 13, name: "IPNExtension", port: 443, command: "/Applications/Tailscale.app/Contents/PlugIns/IPNExtension.appex/Contents/MacOS/IPNExtension" }), commonPort: { name: "HTTPS / QUIC", expectedApps: ["web server", "reverse proxy", "VPN"] } },
+    { port: 5000, host: "*", protocol: "TCP", owner: owner({ pid: 14, name: "ControlCenter", port: 5000, command: "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter", originator: "/System/Library/CoreServices/ControlCenter.app" }), commonPort: null },
+  ]);
+
+  const displayGroupByPort = new Map(groups.map((group) => [group.port, group.displayGroup.name]));
+
+  assert.equal(displayGroupByPort.get(5173), "Web Dev");
+  assert.equal(displayGroupByPort.get(5432), "Databases");
+  assert.equal(displayGroupByPort.get(11434), "AI");
+  assert.equal(displayGroupByPort.get(443), "Tunnels");
+  assert.equal(displayGroupByPort.get(5000), "System");
+});
+
 test("listListeningPorts includes grouped display rows", async () => {
   const result = await listListeningPorts();
 

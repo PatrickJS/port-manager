@@ -34,6 +34,28 @@ export function groupedPorts(result: ListeningPortsPayload) {
   return result.portGroups ?? groupPortEntries(result.ports);
 }
 
+export function portGroupSections(groups: ListeningPortGroup[]) {
+  const sections = new Map<string, { id: string; name: string; rank: number; groups: ListeningPortGroup[] }>();
+  for (const group of groups) {
+    const displayGroup = group.displayGroup ?? { id: "other", name: "Other", rank: 100 };
+    const section = sections.get(displayGroup.id) ?? {
+      id: displayGroup.id,
+      name: displayGroup.name,
+      rank: displayGroup.rank,
+      groups: [],
+    };
+    section.groups.push(group);
+    sections.set(displayGroup.id, section);
+  }
+
+  return Array.from(sections.values())
+    .map((section) => ({
+      ...section,
+      groups: section.groups.sort((a, b) => a.port - b.port),
+    }))
+    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+}
+
 export function portGroupTitle(group: ListeningPortGroup) {
   return group.title || `Port ${group.port}`;
 }

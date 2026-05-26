@@ -20,6 +20,7 @@ import {
   listListeningPorts,
   ListeningPortGroup,
   portGroupBindings,
+  portGroupSections,
   portGroupTitle,
 } from "./port-manager";
 
@@ -38,7 +39,7 @@ export default function Command() {
       .catch((error) => setState({ isLoading: false, portGroups: [], error: error as Error }));
   }, []);
 
-  const visiblePortGroups = state.portGroups.slice(0, 30);
+  const visibleSections = portGroupSections(state.portGroups.slice(0, 40));
 
   return (
     <MenuBarExtra icon={Icon.Network} isLoading={state.isLoading}>
@@ -46,13 +47,17 @@ export default function Command() {
         {state.error ? (
           <MenuBarExtra.Item title="Port scan failed" subtitle={truncate(state.error.message, 30)} />
         ) : null}
-        {visiblePortGroups.map((group) => (
-          <PortMenuItem key={group.id} group={group} />
-        ))}
-        {!state.error && visiblePortGroups.length === 0 && !state.isLoading ? (
+        {!state.error && visibleSections.length === 0 && !state.isLoading ? (
           <MenuBarExtra.Item title="No Open Ports" />
         ) : null}
       </MenuBarExtra.Section>
+      {visibleSections.map((section) => (
+        <MenuBarExtra.Section key={section.id} title={section.name}>
+          {section.groups.map((group) => (
+            <PortMenuItem key={group.id} group={group} />
+          ))}
+        </MenuBarExtra.Section>
+      ))}
       <MenuBarExtra.Item
         title="Open Port List"
         icon={Icon.List}

@@ -118,6 +118,7 @@ struct PortManagerCLIClient {
       ownerCount: 1,
       entryCount: 1,
       groupReason: nil,
+      displayGroup: .other,
       ownershipEvidence: entry.owner.ownership.evidence,
       ownershipSummaryOverride: entry.owner.ownership.summary,
       ownershipConfidenceOverride: OwnershipConfidence(rawValue: entry.owner.ownership.confidence.capitalized)
@@ -163,6 +164,7 @@ struct PortManagerCLIClient {
       ownerCount: group.owners.count,
       entryCount: group.entries.count,
       groupReason: group.reason,
+      displayGroup: group.displayGroup,
       ownershipEvidence: evidence,
       ownershipSummaryOverride: group.reason,
       ownershipConfidenceOverride: OwnershipConfidence(rawValue: primaryOwner?.ownership.confidence.capitalized ?? "")
@@ -232,6 +234,7 @@ private struct CLIPortGroup: Decodable {
   let title: String
   let reason: String
   let commonPort: CommonPort?
+  let displayGroup: PortDisplayGroup
   let owners: [CLIOwner]
   let bindings: [CLIGroupBinding]
   let entries: [CLIPortEntry]

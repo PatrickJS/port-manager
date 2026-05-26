@@ -39,10 +39,34 @@ struct MenuBarPortsView: View {
     } else if store.ports.isEmpty {
       Text("No Open Ports")
     } else {
-      ForEach(Array(store.ports.prefix(30))) { port in
-        portMenu(port)
+      ForEach(menuSections) { section in
+        Divider()
+        Section(section.name) {
+          ForEach(section.ports) { port in
+            portMenu(port)
+          }
+        }
       }
     }
+  }
+
+  private var menuSections: [MenuPortSection] {
+    let visiblePorts = Array(store.ports.prefix(40))
+    let groups = Dictionary(grouping: visiblePorts, by: \.displayGroup)
+    return groups
+      .map { group, ports in
+        MenuPortSection(group: group, ports: ports.sorted(by: sortPorts))
+      }
+      .sorted { lhs, rhs in
+        if lhs.rank != rhs.rank {
+          return lhs.rank < rhs.rank
+        }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+      }
+  }
+
+  private func sortPorts(_ lhs: ListeningPort, _ rhs: ListeningPort) -> Bool {
+    (lhs.primaryPort ?? 0) < (rhs.primaryPort ?? 0)
   }
 
   private func portMenu(_ port: ListeningPort) -> some View {
@@ -108,5 +132,19 @@ struct MenuBarPortsView: View {
       return value
     }
     return "\(value.prefix(29))..."
+  }
+}
+
+private struct MenuPortSection: Identifiable {
+  let id: String
+  let name: String
+  let rank: Int
+  let ports: [ListeningPort]
+
+  init(group: PortDisplayGroup, ports: [ListeningPort]) {
+    id = group.id
+    name = group.name
+    rank = group.rank
+    self.ports = ports
   }
 }

@@ -21,6 +21,15 @@ const COMMON_PORTS = new Map([
   [27017, { name: "MongoDB", expectedApps: ["mongod"] }],
 ]);
 
+const DISPLAY_GROUPS = {
+  webDev: { id: "web-dev", name: "Web Dev", rank: 10 },
+  databases: { id: "databases", name: "Databases", rank: 20 },
+  ai: { id: "ai", name: "AI", rank: 30 },
+  tunnels: { id: "tunnels", name: "Tunnels", rank: 40 },
+  system: { id: "system", name: "System", rank: 90 },
+  other: { id: "other", name: "Other", rank: 100 },
+};
+
 export async function explainPort(options) {
   const port = normalizePort(typeof options === "number" ? options : options?.port);
   const host = typeof options === "object" ? options.host : undefined;
@@ -154,10 +163,78 @@ function finalizePortGroup(group) {
     title: groupTitle(owners),
     reason: `${owners.length} ${pluralize("owner", owners.length)} across ${bindings.length} ${pluralize("binding", bindings.length)}`,
     commonPort: group.commonPort,
+    displayGroup: classifyDisplayGroup({ port: group.port, commonPort: group.commonPort, owners }),
     owners,
     bindings,
     entries,
   };
+}
+
+function classifyDisplayGroup({ port, commonPort, owners }) {
+  const text = [
+    commonPort?.name,
+    ...(commonPort?.expectedApps ?? []),
+    ...owners.flatMap((owner) => [
+      owner.name,
+      owner.command,
+      owner.args,
+      owner.cwd,
+      owner.launchd?.originator,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (isSystemOwned(owners)) {
+    return DISPLAY_GROUPS.system;
+  }
+  if (/\b(postgres|postgresql|mysql|mariadb|redis|mongo|mongodb|mongod)\b/.test(text)) {
+    return DISPLAY_GROUPS.databases;
+  }
+  if (/\b(ollama|lm studio|llama|gradio|jupyter|notebook)\b/.test(text) || [7860, 8888, 11434].includes(port)) {
+    return DISPLAY_GROUPS.ai;
+  }
+  if (/\b(tailscale|ipnextension|ngrok|cloudflared|cloudflare|tunnel|trycloudflare)\b/.test(text)) {
+    return DISPLAY_GROUPS.tunnels;
+  }
+  if (isLikelyWebDevPort(port) || isWebDevOwned(owners)) {
+    return DISPLAY_GROUPS.webDev;
+  }
+  return DISPLAY_GROUPS.other;
+}
+
+function isWebDevOwned(owners) {
+  return owners.some((owner) => {
+    const name = (owner.name ?? "").toLowerCase();
+    const commandText = [
+      owner.command,
+      owner.args,
+      owner.cwd,
+    ].filter(Boolean).join(" ").toLowerCase();
+    return /^(node|bun|deno)$/.test(name)
+      || /\b(vite|next dev|astro|remix|webpack-dev-server|nuxt|svelte-kit|pnpm|npm run|yarn)\b/.test(commandText);
+  });
+}
+
+function isSystemOwned(owners) {
+  return owners.some((owner) => {
+    const text = [
+      owner.name,
+      owner.command,
+      owner.launchd?.originator,
+    ].filter(Boolean).join(" ");
+    return text.startsWith("/System/")
+      || text.includes("/System/Library/")
+      || /\b(ControlCenter|rapportd|sharingd|mDNSResponder|AirPlayXPCHelper)\b/.test(text);
+  });
+}
+
+function isLikelyWebDevPort(port) {
+  return (port >= 3000 && port <= 3010)
+    || (port >= 4173 && port <= 4180)
+    || (port >= 5173 && port <= 5180)
+    || [8000, 8080].includes(port);
 }
 
 function ownerGroupKey(owner) {
