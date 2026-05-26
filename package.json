@@ -6,10 +6,13 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/check-package-exports.mjs",
+    "build:macos": "swift build --package-path apps/macos",
     "check": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build",
     "lint": "node scripts/check-style.mjs",
+    "run:macos": "./script/build_and_run.sh",
     "test": "node --test tests/*.test.js",
-    "typecheck": "node scripts/check-syntax.mjs"
+    "typecheck": "node scripts/check-syntax.mjs",
+    "verify:macos": "./script/build_and_run.sh --verify"
   },
   "engines": {
     "node": ">=20"

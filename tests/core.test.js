@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { test } from "node:test";
+import { tmpdir } from "node:os";
 import {
   checkPort,
   clearLockedPorts,
   explainPort,
   findAvailablePort,
   isPortAvailable,
+  listPortReservations,
   reservePort,
 } from "@patrickjs/port-manager";
 
@@ -62,6 +66,37 @@ test("reserved get-port style locks can be cleared", async () => {
   const second = await findAvailablePort({ port: 43000, stopPort: 43010 });
 
   assert.notEqual(second.port, first.port);
+
+  clearLockedPorts();
+  const third = await findAvailablePort({ port: first.port, stopPort: first.port });
+  assert.equal(third.port, first.port);
+});
+
+test("reserved find locks are shared through the local registry", async (t) => {
+  const previousStateDir = process.env.PORT_MANAGER_STATE_DIR;
+  const stateDir = await mkdtemp(join(tmpdir(), "port-manager-test-"));
+  process.env.PORT_MANAGER_STATE_DIR = stateDir;
+  clearLockedPorts();
+
+  t.after(async () => {
+    clearLockedPorts();
+    if (previousStateDir === undefined) {
+      delete process.env.PORT_MANAGER_STATE_DIR;
+    } else {
+      process.env.PORT_MANAGER_STATE_DIR = previousStateDir;
+    }
+    await rm(stateDir, { recursive: true, force: true });
+  });
+
+  const first = await findAvailablePort({ port: 44000, stopPort: 44010, reserve: true });
+  const status = await checkPort({ port: first.port });
+  const reservations = await listPortReservations();
+  const second = await findAvailablePort({ port: first.port, stopPort: first.port + 5 });
+
+  assert.equal(status.status, "reserved");
+  assert.equal(status.reserved, true);
+  assert.equal(reservations.some((reservation) => reservation.port === first.port), true);
+  assert.equal(second.port > first.port, true);
 
   clearLockedPorts();
   const third = await findAvailablePort({ port: first.port, stopPort: first.port });

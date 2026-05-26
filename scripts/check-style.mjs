@@ -1,17 +1,21 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const roots = [".github", "docs", "packages", "scripts", "tests"];
+const roots = [".github", "apps", "docs", "packages", "script", "scripts", "tests"];
+const ignoredDirectories = new Set([".build", "node_modules", "dist"]);
 const files = [];
 
 async function collect(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
     if (entry.isDirectory()) {
-      if (entry.name !== "node_modules" && entry.name !== "dist") {
+      if (!ignoredDirectories.has(entry.name)) {
         await collect(path);
       }
-    } else {
+    } else if (entry.isFile()) {
       files.push(path);
     }
   }
@@ -39,4 +43,3 @@ if (failures.length > 0) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
-

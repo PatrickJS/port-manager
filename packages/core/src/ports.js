@@ -1,4 +1,9 @@
 import net from "node:net";
+import {
+  acquirePortLease,
+  clearHeldPortLeasesSync,
+  hasActivePortLease,
+} from "./leases.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const MIN_PORT = 0;
@@ -31,6 +36,7 @@ export function clearLockedPorts() {
     clearTimeout(timeout);
   }
   lockedPorts.clear();
+  clearHeldPortLeasesSync();
 }
 
 export async function isPortAvailable(options) {
@@ -38,6 +44,9 @@ export async function isPortAvailable(options) {
   const excludedPorts = new Set(Array.from(exclude, Number));
 
   if (excludedPorts.has(port) || lockedPorts.has(port)) {
+    return false;
+  }
+  if (await hasActivePortLease({ port, host })) {
     return false;
   }
 
@@ -53,8 +62,9 @@ export async function checkPort(options) {
     schemaVersion: "2026-05-26.port-manager.check.v1",
     host: normalized.host,
     port: normalized.port,
-    inUse: status.status === "open",
+    inUse: status.status === "open" || status.status === "reserved",
     status: status.status,
+    reserved: status.status === "reserved",
     errorCode: status.errorCode ?? null,
   };
 }
@@ -62,6 +72,7 @@ export async function checkPort(options) {
 export async function findAvailablePort(options = {}) {
   const host = options.host ?? DEFAULT_HOST;
   const exclude = new Set(Array.from(options.exclude ?? [], Number));
+  const shared = options.shared !== false;
   let requestedPort = undefined;
 
   for (const port of candidatePorts(options)) {
@@ -71,11 +82,26 @@ export async function findAvailablePort(options = {}) {
     if (exclude.has(port) || lockedPorts.has(port)) {
       continue;
     }
+    if (shared && await hasActivePortLease({ port, host })) {
+      continue;
+    }
 
     const attempt = await listen({ port, host, keepOpen: false });
     if (attempt.ok) {
       if (options.reserve === true) {
-        lockPort(attempt.port);
+        if (shared) {
+          const lease = await acquirePortLease({
+            host,
+            port: attempt.port,
+            ttlMs: options.leaseMs ?? DEFAULT_LOCK_MS,
+            reason: "findAvailablePort",
+          });
+          if (!lease) {
+            continue;
+          }
+        } else {
+          lockPort(attempt.port);
+        }
       }
       return {
         schemaVersion: "2026-05-26.port-manager.find.v1",
@@ -83,6 +109,7 @@ export async function findAvailablePort(options = {}) {
         port: attempt.port,
         requestedPort,
         changed: requestedPort !== undefined && requestedPort !== attempt.port,
+        reserved: options.reserve === true,
       };
     }
   }
@@ -97,18 +124,37 @@ export async function findAvailablePort(options = {}) {
 export async function reservePort(options = {}) {
   const host = options.host ?? DEFAULT_HOST;
   const exclude = new Set(Array.from(options.exclude ?? [], Number));
+  const shared = options.shared !== false;
   let requestedPort = undefined;
 
   for (const port of candidatePorts(options)) {
     if (requestedPort === undefined) {
       requestedPort = port;
     }
-    if (exclude.has(port)) {
+    if (exclude.has(port) || lockedPorts.has(port)) {
+      continue;
+    }
+    if (shared && await hasActivePortLease({ port, host })) {
       continue;
     }
 
     const attempt = await listen({ port, host, keepOpen: true });
     if (attempt.ok) {
+      const lease = shared
+        ? await acquirePortLease({
+          host,
+          port: attempt.port,
+          ttlMs: options.leaseMs ?? DEFAULT_LOCK_MS,
+          reason: "reservePort",
+          refresh: true,
+        })
+        : null;
+
+      if (shared && !lease) {
+        await closeServer(attempt.server);
+        continue;
+      }
+
       let released = false;
       return {
         schemaVersion: "2026-05-26.port-manager.reserve.v1",
@@ -122,6 +168,7 @@ export async function reservePort(options = {}) {
           }
           released = true;
           await closeServer(attempt.server);
+          await lease?.release();
         },
       };
     }
@@ -163,12 +210,11 @@ export async function waitForPort(options) {
 }
 
 async function getPortStatus({ port, host = DEFAULT_HOST }) {
-  if (lockedPorts.has(port)) {
-    return { status: "open" };
-  }
-
   const attempt = await listen({ port, host, keepOpen: false });
   if (attempt.ok) {
+    if (lockedPorts.has(port) || await hasActivePortLease({ port, host })) {
+      return { status: "reserved" };
+    }
     return { status: "closed" };
   }
   if (attempt.error?.code === "EADDRINUSE") {

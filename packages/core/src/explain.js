@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { listPortReservations } from "./leases.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -23,21 +24,31 @@ const COMMON_PORTS = new Map([
 export async function explainPort(options) {
   const port = normalizePort(typeof options === "number" ? options : options?.port);
   const host = typeof options === "object" ? options.host : undefined;
-  const owners = await inspectPortOwners(port);
+  const [owners, reservations] = await Promise.all([
+    inspectPortOwners(port),
+    listPortReservations(),
+  ]);
   const filteredOwners = host ? owners.filter((owner) => owner.binds.some((bind) => bind.host === host)) : owners;
+  const filteredReservations = reservations.filter((reservation) => {
+    return reservation.port === port && (!host || reservation.host === host);
+  });
 
   return {
     schemaVersion: "2026-05-26.port-manager.explain.v1",
     generatedAt: new Date().toISOString(),
     query: { port, host: host ?? null },
-    status: filteredOwners.length > 0 ? "inUse" : "free",
+    status: filteredOwners.length > 0 ? "inUse" : filteredReservations.length > 0 ? "reserved" : "free",
     commonPort: COMMON_PORTS.get(port) ?? null,
     owners: filteredOwners,
+    reservations: filteredReservations,
   };
 }
 
 export async function listListeningPorts() {
-  const records = await runLsof(["-nP", "-iTCP", "-sTCP:LISTEN", "-FpcRuLPn"]);
+  const [records, reservations] = await Promise.all([
+    runLsof(["-nP", "-iTCP", "-sTCP:LISTEN", "-FpcRuLPn"]),
+    listPortReservations(),
+  ]);
   const owners = await enrichProcesses(parseLsof(records));
   const ports = [];
 
@@ -53,9 +64,24 @@ export async function listListeningPorts() {
     }
   }
 
+  for (const reservation of reservations) {
+    if (ports.some((entry) => entry.port === reservation.port)) {
+      continue;
+    }
+    ports.push({
+      port: reservation.port,
+      host: reservation.host,
+      protocol: reservation.protocol,
+      status: "reserved",
+      owner: reservationOwner(reservation),
+      commonPort: COMMON_PORTS.get(reservation.port) ?? null,
+    });
+  }
+
   return {
     schemaVersion: "2026-05-26.port-manager.list.v1",
     generatedAt: new Date().toISOString(),
+    reservations,
     ports: ports.sort((a, b) => a.port - b.port || a.host.localeCompare(b.host)),
   };
 }
@@ -68,6 +94,7 @@ async function inspectPortOwners(port) {
 async function enrichProcesses(processes) {
   const enriched = [];
   for (const process of processes) {
+    const binds = uniqueBinds(process.binds);
     const [ps, cwd, launch] = await Promise.all([
       getPsInfo(process.pid),
       getCwd(process.pid),
@@ -76,7 +103,7 @@ async function enrichProcesses(processes) {
     const name = process.name ?? ps.commandName ?? null;
     const evidence = [
       `lsof reported PID ${process.pid}`,
-      ...process.binds.map((bind) => `bound ${bind.protocol} ${bind.host}:${bind.port}`),
+      ...binds.map((bind) => `bound ${bind.protocol} ${bind.host}:${bind.port}`),
     ];
 
     if (ps.args) {
@@ -96,15 +123,59 @@ async function enrichProcesses(processes) {
       args: ps.args ?? null,
       cwd,
       launchd: launch,
-      binds: process.binds,
+      binds,
       ownership: {
         confidence: ps.command || launch.originator ? "high" : "medium",
-        summary: `${name ?? "PID " + process.pid} owns ${process.binds.map((bind) => `${bind.host}:${bind.port}`).join(", ")}`,
+        summary: `${name ?? "PID " + process.pid} owns ${binds.map((bind) => `${bind.host}:${bind.port}`).join(", ")}`,
         evidence,
       },
     });
   }
   return enriched;
+}
+
+function uniqueBinds(binds) {
+  const seen = new Set();
+  const unique = [];
+  for (const bind of binds) {
+    const key = `${bind.protocol}:${bind.host}:${bind.port}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(bind);
+    }
+  }
+  return unique;
+}
+
+function reservationOwner(reservation) {
+  const bind = {
+    host: reservation.host,
+    port: reservation.port,
+    protocol: reservation.protocol,
+  };
+
+  return {
+    pid: reservation.pid,
+    name: "Port Manager reservation",
+    user: null,
+    uid: reservation.uid,
+    parentPid: null,
+    command: reservation.argv0,
+    args: null,
+    cwd: reservation.cwd,
+    launchd: { originator: null },
+    binds: [bind],
+    reservation,
+    ownership: {
+      confidence: "high",
+      summary: `Port Manager reserved ${reservation.host}:${reservation.port}`,
+      evidence: [
+        `port-manager lease ${reservation.id}`,
+        `lease reason: ${reservation.reason}`,
+        `expires at ${reservation.expiresAt}`,
+      ],
+    },
+  };
 }
 
 function parseLsof(output) {
@@ -251,4 +322,3 @@ function normalizePort(value) {
   }
   return port;
 }
-

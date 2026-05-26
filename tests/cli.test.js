@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { test } from "node:test";
+import { tmpdir } from "node:os";
 
 const cli = new URL("../packages/cli/bin/port-manager.js", import.meta.url);
 
@@ -28,4 +31,41 @@ test("CLI explain emits stable JSON", () => {
   assert.equal(payload.ok, true);
   assert.equal(payload.command, "explain");
   assert.equal(payload.result.query.port, 9);
+});
+
+test("CLI list includes shared reserved ports", async () => {
+  const stateDir = await mkdtemp(join(tmpdir(), "port-manager-cli-test-"));
+  const env = {
+    ...process.env,
+    PORT_MANAGER_STATE_DIR: stateDir,
+  };
+
+  try {
+    const reserved = spawnSync(process.execPath, [
+      cli.pathname,
+      "find",
+      "45000",
+      "--stop-port",
+      "45010",
+      "--reserve",
+      "--json",
+    ], { encoding: "utf8", env });
+
+    assert.equal(reserved.status, 0, reserved.stderr);
+    const reservedPayload = JSON.parse(reserved.stdout);
+
+    const listed = spawnSync(process.execPath, [cli.pathname, "list", "--json"], {
+      encoding: "utf8",
+      env,
+    });
+
+    assert.equal(listed.status, 0, listed.stderr);
+    const listedPayload = JSON.parse(listed.stdout);
+    const port = reservedPayload.result.port;
+
+    assert.equal(listedPayload.result.reservations.some((reservation) => reservation.port === port), true);
+    assert.equal(listedPayload.result.ports.some((entry) => entry.port === port && entry.status === "reserved"), true);
+  } finally {
+    await rm(stateDir, { recursive: true, force: true });
+  }
 });
