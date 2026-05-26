@@ -110,7 +110,7 @@ test("explainPort returns a stable JSON shape", async () => {
     const explanation = await explainPort({ port: reservation.port });
     assert.equal(explanation.schemaVersion, "2026-05-26.port-manager.explain.v1");
     assert.equal(explanation.query.port, reservation.port);
-    assert.ok(["free", "inUse"].includes(explanation.status));
+    assert.ok(["free", "inUse", "reserved"].includes(explanation.status));
     assert.equal(Array.isArray(explanation.owners), true);
   } finally {
     await reservation.release();
