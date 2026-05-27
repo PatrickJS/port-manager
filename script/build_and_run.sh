@@ -18,6 +18,8 @@ APP_BINARY="$APP_MACOS/$APP_NAME"
 LAUNCHER_BINARY="$APP_MACOS/$LAUNCHER_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 PNPM_PATH="$(command -v pnpm)"
+NODE_PATH="$(command -v node)"
+CLI_PATH="$(dirname "$NODE_PATH"):$(dirname "$PNPM_PATH"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
@@ -34,8 +36,8 @@ cp "$BUILD_LAUNCHER" "$LAUNCHER_BINARY"
 chmod +x "$APP_BINARY"
 chmod +x "$LAUNCHER_BINARY"
 
-node -e 'console.log(JSON.stringify({ repoRoot: process.argv[1], pnpmPath: process.argv[2] }, null, 2))' \
-  "$ROOT_DIR" "$PNPM_PATH" >"$APP_RESOURCES/PortManagerConfig.json"
+node -e 'console.log(JSON.stringify({ repoRoot: process.argv[1], pnpmPath: process.argv[2], pathEnvironment: process.argv[3] }, null, 2))' \
+  "$ROOT_DIR" "$PNPM_PATH" "$CLI_PATH" >"$APP_RESOURCES/PortManagerConfig.json"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

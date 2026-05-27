@@ -59,6 +59,7 @@ struct PortManagerCLIClient {
         "exec",
         "port-manager"
       ] + arguments
+      process.environment = config.processEnvironment
 
       let stdout = Pipe()
       let stderr = Pipe()
@@ -184,6 +185,20 @@ struct PortManagerCLIClient {
 struct PortManagerAppConfig: Decodable {
   let repoRoot: String
   let pnpmPath: String
+  let pathEnvironment: String?
+
+  var processEnvironment: [String: String] {
+    var environment = ProcessInfo.processInfo.environment
+    if let pathEnvironment, !pathEnvironment.isEmpty {
+      environment["PATH"] = pathEnvironment
+    } else if environment["PATH"] == nil {
+      environment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    }
+    if environment["HOME"] == nil {
+      environment["HOME"] = FileManager.default.homeDirectoryForCurrentUser.path
+    }
+    return environment
+  }
 
   static func load() -> PortManagerAppConfig {
     guard let url = Bundle.main.url(forResource: "PortManagerConfig", withExtension: "json"),
@@ -192,7 +207,8 @@ struct PortManagerAppConfig: Decodable {
     else {
       return PortManagerAppConfig(
         repoRoot: FileManager.default.currentDirectoryPath,
-        pnpmPath: "/opt/homebrew/bin/pnpm"
+        pnpmPath: "/opt/homebrew/bin/pnpm",
+        pathEnvironment: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
       )
     }
 
