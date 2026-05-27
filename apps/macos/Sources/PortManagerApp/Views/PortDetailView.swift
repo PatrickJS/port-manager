@@ -2,6 +2,8 @@ import SwiftUI
 
 struct PortDetailView: View {
   let port: ListeningPort?
+  let allPorts: [ListeningPort]
+  let inspectionStore: PortInspectionStore
   let onKill: (ListeningPort) -> Void
 
   var body: some View {
@@ -20,6 +22,11 @@ struct PortDetailView: View {
             DetailSection(title: "Ownership") {
               MetadataGrid(rows: ownershipRows(for: port))
             }
+            InspectionSection(
+              port: port,
+              allPorts: allPorts,
+              inspectionStore: inspectionStore
+            )
             DetailSection(title: "Evidence") {
               VStack(alignment: .leading, spacing: 8) {
                 ForEach(port.ownershipEvidence, id: \.self) { evidence in
@@ -52,6 +59,67 @@ struct PortDetailView: View {
       MetadataRow(label: "Working Directory", value: port.currentDirectory ?? "Unknown"),
       MetadataRow(label: "Launch Originator", value: port.launchOriginator ?? "Unknown")
     ]
+  }
+}
+
+private struct InspectionSection: View {
+  let port: ListeningPort
+  let allPorts: [ListeningPort]
+  let inspectionStore: PortInspectionStore
+
+  var body: some View {
+    let inspection = inspectionStore.inspections[portClusterKey(for: port)]
+    DetailSection(title: "AI Inspection") {
+      VStack(alignment: .leading, spacing: 10) {
+        HStack(spacing: 8) {
+          Button {
+            Task {
+              await inspectionStore.inspect(port: port, allPorts: allPorts)
+            }
+          } label: {
+            Label(inspection == nil ? "Ask AI" : "Inspect Again", systemImage: "sparkles")
+          }
+          .disabled(inspectionStore.isInspecting(port))
+
+          if inspectionStore.isInspecting(port) {
+            ProgressView()
+              .controlSize(.small)
+          }
+
+          if let inspection {
+            Text("Saved \(inspection.generatedAt.formatted(date: .abbreviated, time: .shortened))")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
+        if let inspection {
+          Text(inspection.summary)
+            .textSelection(.enabled)
+
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(inspection.details, id: \.self) { detail in
+              EvidenceLine(text: detail)
+            }
+          }
+
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Basis")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            ForEach(inspection.basis, id: \.self) { basis in
+              Text(basis)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            }
+          }
+        } else {
+          Text("Inspect this app cluster to generate and save a local explanation from current process evidence.")
+            .foregroundStyle(.secondary)
+        }
+      }
+    }
   }
 }
 

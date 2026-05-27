@@ -18,6 +18,8 @@ import {
   killOptionsForGroup,
   killPort,
   listListeningPorts,
+  portGroupClusters,
+  PortGroupCluster,
   ListeningPortGroup,
   portGroupBindings,
   portGroupSections,
@@ -55,15 +57,15 @@ export default function Command() {
       </MenuBarExtra.Section>
       {regularSections.map((section) => (
         <MenuBarExtra.Section key={section.id} title={section.name}>
-          {section.groups.map((group) => (
-            <PortMenuItem key={group.id} group={group} />
+          {portGroupClusters(section.groups, section.id).map((cluster) => (
+            <PortClusterMenuItem key={cluster.id} cluster={cluster} />
           ))}
         </MenuBarExtra.Section>
       ))}
       {safeSections.length > 0 ? (
         <MenuBarExtra.Submenu title={`OS / Apple · Safe to ignore (${safeSections.reduce((count, section) => count + section.groups.length, 0)})`}>
-          {safeSections.flatMap((section) => section.groups).map((group) => (
-            <PortMenuItem key={group.id} group={group} />
+          {portGroupClusters(safeSections.flatMap((section) => section.groups), "safe").map((cluster) => (
+            <PortClusterMenuItem key={cluster.id} cluster={cluster} />
           ))}
         </MenuBarExtra.Submenu>
       ) : null}
@@ -82,6 +84,23 @@ export default function Command() {
 
 function isSafeToIgnoreSection(section: { id: string }) {
   return section.id === "os-apple" || section.id === "system";
+}
+
+function PortClusterMenuItem(props: { cluster: PortGroupCluster }) {
+  const { cluster } = props;
+  if (cluster.groups.length === 1 && cluster.groups[0]) {
+    return <PortMenuItem group={cluster.groups[0]} />;
+  }
+
+  const ports = cluster.groups.map((group) => group.port).join(", ");
+  return (
+    <MenuBarExtra.Submenu title={truncate(`${cluster.title} · ${cluster.groups.length} ports`, 30)}>
+      <MenuBarExtra.Item title={`${cluster.groups.length} ports`} subtitle={truncate(ports, 30)} />
+      {cluster.groups.map((group) => (
+        <PortMenuItem key={group.id} group={group} />
+      ))}
+    </MenuBarExtra.Submenu>
+  );
 }
 
 function PortMenuItem(props: { group: ListeningPortGroup }) {

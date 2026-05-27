@@ -45,8 +45,8 @@ struct MenuBarPortsView: View {
           Divider()
         }
         Section(section.name) {
-          ForEach(section.ports) { port in
-            portMenu(port)
+          ForEach(section.clusters) { cluster in
+            clusterMenu(cluster)
           }
         }
       }
@@ -54,8 +54,8 @@ struct MenuBarPortsView: View {
         Divider()
         ForEach(safeMenuSections) { section in
           Menu("\(section.name) · Safe to ignore (\(section.ports.count))") {
-            ForEach(section.ports) { port in
-              portMenu(port)
+            ForEach(section.clusters) { cluster in
+              clusterMenu(cluster)
             }
           }
         }
@@ -119,6 +119,28 @@ struct MenuBarPortsView: View {
     }
   }
 
+  @ViewBuilder
+  private func clusterMenu(_ cluster: PortCluster) -> some View {
+    if cluster.isSinglePort, let port = cluster.firstPort {
+      portMenu(port)
+    } else {
+      Menu(clusterTitle(for: cluster)) {
+        Text("\(cluster.portCount) ports")
+        if !cluster.portList.isEmpty {
+          Text("Ports \(cluster.portList)")
+        }
+        Divider()
+        ForEach(cluster.ports) { port in
+          portMenu(port)
+        }
+      }
+    }
+  }
+
+  private func clusterTitle(for cluster: PortCluster) -> String {
+    truncated("\(cluster.title) · \(cluster.portCount) ports")
+  }
+
   private func menuTitle(for port: ListeningPort) -> String {
     let title = "\(port.primaryPort.map(String.init) ?? "?") · \(port.title)"
     return truncated(title)
@@ -161,6 +183,7 @@ private struct MenuPortSection: Identifiable {
   let name: String
   let rank: Int
   let ports: [ListeningPort]
+  let clusters: [PortCluster]
 
   var isSafeToIgnore: Bool {
     id == "os-apple" || id == "system"
@@ -171,5 +194,6 @@ private struct MenuPortSection: Identifiable {
     name = group.name
     rank = group.rank
     self.ports = ports
+    clusters = portClusters(for: ports, namespace: group.id)
   }
 }

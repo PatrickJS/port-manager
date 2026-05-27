@@ -3,6 +3,7 @@ import SwiftUI
 struct PortListView: View {
   @Bindable var store: PortStore
   @State private var collapsedGroupIDs: Set<String> = ["os-apple", "system"]
+  @State private var expandedClusterIDs: Set<String> = []
 
   var body: some View {
     List(selection: $store.selection) {
@@ -13,9 +14,20 @@ struct PortListView: View {
       ForEach(portSections) { section in
         Section {
           if !isCollapsed(section) {
-            ForEach(section.ports) { port in
-              PortRowView(port: port)
-                .tag(port.id)
+            ForEach(section.clusters) { cluster in
+              if cluster.isSinglePort, let port = cluster.firstPort {
+                PortRowView(port: port)
+                  .tag(port.id)
+              } else {
+                DisclosureGroup(isExpanded: clusterExpansionBinding(for: cluster)) {
+                  ForEach(cluster.ports) { port in
+                    PortRowView(port: port)
+                      .tag(port.id)
+                  }
+                } label: {
+                  PortClusterRowView(cluster: cluster)
+                }
+              }
             }
           }
         } header: {
@@ -66,6 +78,18 @@ struct PortListView: View {
       collapsedGroupIDs.remove(section.id)
     } else {
       collapsedGroupIDs.insert(section.id)
+    }
+  }
+
+  private func clusterExpansionBinding(for cluster: PortCluster) -> Binding<Bool> {
+    Binding {
+      hasActiveSearch || expandedClusterIDs.contains(cluster.id)
+    } set: { isExpanded in
+      if isExpanded {
+        expandedClusterIDs.insert(cluster.id)
+      } else {
+        expandedClusterIDs.remove(cluster.id)
+      }
     }
   }
 
@@ -125,6 +149,30 @@ private struct PortSectionHeaderView: View {
   }
 }
 
+private struct PortClusterRowView: View {
+  let cluster: PortCluster
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      HStack(spacing: 6) {
+        Text(cluster.title)
+          .lineLimit(1)
+
+        Text("\(cluster.portCount) ports")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      if !cluster.portList.isEmpty {
+        Text(cluster.portList)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
+    }
+  }
+}
+
 private struct PortRowView: View {
   let port: ListeningPort
 
@@ -174,6 +222,7 @@ private struct PortListSection: Identifiable {
   let name: String
   let rank: Int
   let ports: [ListeningPort]
+  let clusters: [PortCluster]
 
   var isSafeToIgnore: Bool {
     id == "os-apple" || id == "system"
@@ -184,5 +233,6 @@ private struct PortListSection: Identifiable {
     name = group.name
     rank = group.rank
     self.ports = ports
+    clusters = portClusters(for: ports, namespace: group.id)
   }
 }

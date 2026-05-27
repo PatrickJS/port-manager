@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
   @State private var store = PortStore()
+  @State private var inspectionStore = PortInspectionStore()
   @State private var pendingKill: ListeningPort?
 
   var body: some View {
@@ -11,7 +12,11 @@ struct ContentView: View {
       PortListView(store: store)
         .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
     } detail: {
-      PortDetailView(port: store.selectedPort) { port in
+      PortDetailView(
+        port: store.selectedPort,
+        allPorts: store.ports,
+        inspectionStore: inspectionStore
+      ) { port in
         pendingKill = port
       }
     }

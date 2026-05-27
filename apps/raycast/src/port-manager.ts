@@ -60,6 +60,46 @@ export function portGroupTitle(group: ListeningPortGroup) {
   return group.title || `Port ${group.port}`;
 }
 
+export type PortGroupCluster = {
+  id: string;
+  title: string;
+  groups: ListeningPortGroup[];
+};
+
+export function portGroupClusters(groups: ListeningPortGroup[], namespace: string): PortGroupCluster[] {
+  const clusters = new Map<string, PortGroupCluster>();
+  for (const group of groups) {
+    const title = normalizedPortGroupTitle(portGroupTitle(group));
+    const key = normalizedPortGroupKey(title);
+    const cluster = clusters.get(key) ?? { id: `${namespace}-${key}`, title, groups: [] };
+    cluster.groups.push(group);
+    clusters.set(key, cluster);
+  }
+
+  return Array.from(clusters.values())
+    .map((cluster) => ({
+      ...cluster,
+      groups: cluster.groups.sort((a, b) => a.port - b.port),
+    }))
+    .sort((a, b) => (a.groups[0]?.port ?? 0) - (b.groups[0]?.port ?? 0) || a.title.localeCompare(b.title));
+}
+
+function normalizedPortGroupTitle(title: string) {
+  const lowercased = title.toLowerCase();
+  if (lowercased === "ollama") return "Ollama";
+  if (lowercased.startsWith("cursor helper")) return "Cursor Helper (Plugin)";
+  if (lowercased.startsWith("github desktop helper")) return "GitHub Desktop Helper";
+  if (lowercased.startsWith("discord helper")) return "Discord Helper";
+  if (lowercased === "raycast") return "Raycast";
+  if (lowercased === "reflect") return "Reflect";
+  if (lowercased === "spotify") return "Spotify";
+  return title;
+}
+
+function normalizedPortGroupKey(title: string) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 export function portGroupSubtitle(group: ListeningPortGroup) {
   const common = group.commonPort ? ` · ${group.commonPort.name}` : "";
   return `${group.reason}${common}`;
