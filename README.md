@@ -67,6 +67,25 @@ pnpm run verify:macos
 
 The generated app bundle stores the workspace path and `pnpm` path in `PortManagerConfig.json`, then calls the workspace CLI. That keeps the UI, CLI, and package adapters on the same core implementation while the standalone packaging shape is still being developed.
 
+The app includes a native Settings window for startup behavior:
+
+- enable "Start at login and keep running" to install a per-user LaunchAgent,
+- choose "This app" for a released/current app bundle,
+- choose "Local dist build" when running from this repo's `dist/PortManager.app`.
+
+The LaunchAgent runs the bundled `PortManagerLauncher` helper, not a shell
+wrapper, so macOS background-item notices point at Port Manager code instead of
+`zsh`. Settings also shows the selected app path, helper path, `launchctl`
+status, and launchd stdout/stderr log tails for debugging failed startup
+targets.
+
+For source builds, the same LaunchAgent can be managed from the terminal:
+
+```sh
+script/install_launch_agent.sh
+script/uninstall_launch_agent.sh
+```
+
 ## Raycast
 
 The local Raycast extension lives in `apps/raycast`. It provides:

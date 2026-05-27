@@ -62,6 +62,9 @@ struct PortManagerApp: App {
         Image(systemName: "slash")
       }
     }
+    Settings {
+      SettingsView()
+    }
   }
 }
 

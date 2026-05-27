@@ -3,6 +3,7 @@ set -euo pipefail
 
 MODE="${1:-run}"
 APP_NAME="PortManager"
+LAUNCHER_NAME="PortManagerLauncher"
 BUNDLE_ID="dev.patrickjs.PortManager"
 MIN_SYSTEM_VERSION="15.0"
 
@@ -14,18 +15,24 @@ APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
+LAUNCHER_BINARY="$APP_MACOS/$LAUNCHER_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 PNPM_PATH="$(command -v pnpm)"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
-swift build --package-path "$PACKAGE_DIR"
-BUILD_BINARY="$(swift build --package-path "$PACKAGE_DIR" --show-bin-path)/$APP_NAME"
+swift build --package-path "$PACKAGE_DIR" --product "$APP_NAME"
+swift build --package-path "$PACKAGE_DIR" --product "$LAUNCHER_NAME"
+BUILD_DIR="$(swift build --package-path "$PACKAGE_DIR" --show-bin-path)"
+BUILD_BINARY="$BUILD_DIR/$APP_NAME"
+BUILD_LAUNCHER="$BUILD_DIR/$LAUNCHER_NAME"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
+cp "$BUILD_LAUNCHER" "$LAUNCHER_BINARY"
 chmod +x "$APP_BINARY"
+chmod +x "$LAUNCHER_BINARY"
 
 node -e 'console.log(JSON.stringify({ repoRoot: process.argv[1], pnpmPath: process.argv[2] }, null, 2))' \
   "$ROOT_DIR" "$PNPM_PATH" >"$APP_RESOURCES/PortManagerConfig.json"
@@ -56,6 +63,8 @@ open_app() {
 }
 
 case "$MODE" in
+  --stage|stage)
+    ;;
   run)
     open_app
     ;;
@@ -79,7 +88,7 @@ case "$MODE" in
     pgrep -x "$APP_NAME" >/dev/null
     ;;
   *)
-    echo "usage: $0 [run|--dock|--debug|--logs|--telemetry|--verify]" >&2
+    echo "usage: $0 [run|--stage|--dock|--debug|--logs|--telemetry|--verify]" >&2
     exit 2
     ;;
 esac

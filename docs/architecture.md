@@ -27,6 +27,8 @@ pnpm --filter @patrickjs/port-manager-cli exec port-manager list --json
 
 That keeps ownership detection, common-port labels, reservation leases, and schema versions in the Node core/CLI contract. The npm adapters also import `@patrickjs/port-manager`, so replacement packages and the UI observe the same cooperative reservation registry.
 
+Startup behavior is owned by a per-user LaunchAgent named `dev.patrickjs.PortManager`. The native Settings window can install or remove it and choose whether it points at the current app bundle ("This app", for released builds) or the repository's `dist/PortManager.app` ("Local dist build", for source development). The LaunchAgent uses `RunAtLoad` and `KeepAlive` so the menu-bar app starts at login and relaunches after exit. It runs the bundled `PortManagerLauncher` helper rather than a shell wrapper, and Settings exposes the selected app path, helper path, `launchctl` status, and launchd stdout/stderr log tails when a target fails to start.
+
 The registry is controlled by `PORT_MANAGER_STATE_DIR` when an explicit shared location is needed. Without that environment variable it uses a per-user temp directory. These leases coordinate cooperating Port Manager clients only; they are not a security boundary and do not prevent unrelated software from binding ports.
 
 Raycast support lives under `apps/raycast`. Its visible commands and AI tools import `@patrickjs/port-manager`, so Raycast does not get a forked scanner or a separate kill implementation.

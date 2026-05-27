@@ -14,6 +14,9 @@ struct MenuBarPortsView: View {
       Button("Open Port Manager") {
         openMainWindow()
       }
+      SettingsLink {
+        Text("Settings")
+      }
       Button("Refresh Ports") {
         Task { await store.refresh() }
       }
