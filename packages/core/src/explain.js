@@ -26,7 +26,8 @@ const DISPLAY_GROUPS = {
   databases: { id: "databases", name: "Databases", rank: 20 },
   ai: { id: "ai", name: "AI", rank: 30 },
   tunnels: { id: "tunnels", name: "Tunnels", rank: 40 },
-  system: { id: "system", name: "System", rank: 90 },
+  apps: { id: "apps", name: "Apps", rank: 80 },
+  osApple: { id: "os-apple", name: "OS / Apple", rank: 90 },
   other: { id: "other", name: "Other", rank: 100 },
 };
 
@@ -187,7 +188,7 @@ function classifyDisplayGroup({ port, commonPort, owners }) {
     .toLowerCase();
 
   if (isSystemOwned(owners)) {
-    return DISPLAY_GROUPS.system;
+    return DISPLAY_GROUPS.osApple;
   }
   if (/\b(postgres|postgresql|mysql|mariadb|redis|mongo|mongodb|mongod)\b/.test(text)) {
     return DISPLAY_GROUPS.databases;
@@ -201,7 +202,22 @@ function classifyDisplayGroup({ port, commonPort, owners }) {
   if (isLikelyWebDevPort(port) || isWebDevOwned(owners)) {
     return DISPLAY_GROUPS.webDev;
   }
+  if (isKnownDesktopAppOwned(owners)) {
+    return DISPLAY_GROUPS.apps;
+  }
   return DISPLAY_GROUPS.other;
+}
+
+function isKnownDesktopAppOwned(owners) {
+  return owners.some((owner) => {
+    const text = [
+      owner.name,
+      owner.command,
+      owner.args,
+      owner.launchd?.originator,
+    ].filter(Boolean).join(" ").toLowerCase();
+    return /\b(github desktop helper|github desktop|spotify|reflect|discord helper|discord|raycast)\b/.test(text);
+  });
 }
 
 function isWebDevOwned(owners) {

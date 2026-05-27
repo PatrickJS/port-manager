@@ -43,7 +43,7 @@ export default function Command() {
 
   return (
     <MenuBarExtra icon={Icon.Network} isLoading={state.isLoading}>
-      <MenuBarExtra.Section title="Open Ports">
+      <MenuBarExtra.Section>
         {state.error ? (
           <MenuBarExtra.Item title="Port scan failed" subtitle={truncate(state.error.message, 30)} />
         ) : null}

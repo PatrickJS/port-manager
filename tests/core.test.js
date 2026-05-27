@@ -210,6 +210,11 @@ test("groupPortEntries assigns default display groups", () => {
     { port: 11434, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 12, name: "ollama", port: 11434 }), commonPort: { name: "Ollama", expectedApps: ["ollama"] } },
     { port: 443, host: "*", protocol: "TCP", owner: owner({ pid: 13, name: "IPNExtension", port: 443, command: "/Applications/Tailscale.app/Contents/PlugIns/IPNExtension.appex/Contents/MacOS/IPNExtension" }), commonPort: { name: "HTTPS / QUIC", expectedApps: ["web server", "reverse proxy", "VPN"] } },
     { port: 5000, host: "*", protocol: "TCP", owner: owner({ pid: 14, name: "ControlCenter", port: 5000, command: "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter", originator: "/System/Library/CoreServices/ControlCenter.app" }), commonPort: null },
+    { port: 7265, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 15, name: "Raycast", port: 7265, command: "/Applications/Raycast.app/Contents/MacOS/Raycast" }), commonPort: null },
+    { port: 7676, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 16, name: "Reflect", port: 7676, command: "/Applications/Reflect.app/Contents/MacOS/Reflect" }), commonPort: null },
+    { port: 7768, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 17, name: "Spotify", port: 7768, command: "/Applications/Spotify.app/Contents/MacOS/Spotify" }), commonPort: null },
+    { port: 6463, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 18, name: "Discord Helper (Renderer)", port: 6463, command: "/Applications/Discord.app/Contents/Frameworks/Discord Helper (Renderer).app/Contents/MacOS/Discord Helper (Renderer)" }), commonPort: null },
+    { port: 49350, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 19, name: "GitHub Desktop Helper (Renderer)", port: 49350, command: "/Applications/GitHub Desktop.app/Contents/Frameworks/GitHub Desktop Helper (Renderer).app/Contents/MacOS/GitHub Desktop Helper (Renderer)" }), commonPort: null },
   ]);
 
   const displayGroupByPort = new Map(groups.map((group) => [group.port, group.displayGroup.name]));
@@ -218,7 +223,12 @@ test("groupPortEntries assigns default display groups", () => {
   assert.equal(displayGroupByPort.get(5432), "Databases");
   assert.equal(displayGroupByPort.get(11434), "AI");
   assert.equal(displayGroupByPort.get(443), "Tunnels");
-  assert.equal(displayGroupByPort.get(5000), "System");
+  assert.equal(displayGroupByPort.get(5000), "OS / Apple");
+  assert.equal(displayGroupByPort.get(7265), "Apps");
+  assert.equal(displayGroupByPort.get(7676), "Apps");
+  assert.equal(displayGroupByPort.get(7768), "Apps");
+  assert.equal(displayGroupByPort.get(6463), "Apps");
+  assert.equal(displayGroupByPort.get(49350), "Apps");
 });
 
 test("listListeningPorts includes grouped display rows", async () => {

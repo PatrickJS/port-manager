@@ -7,9 +7,7 @@ struct MenuBarPortsView: View {
 
   var body: some View {
     Group {
-      Section("Open Ports") {
-        portRows
-      }
+      portRows
       Divider()
       Button("Open Port Manager") {
         openMainWindow()
@@ -42,8 +40,10 @@ struct MenuBarPortsView: View {
     } else if store.ports.isEmpty {
       Text("No Open Ports")
     } else {
-      ForEach(menuSections) { section in
-        Divider()
+      ForEach(Array(menuSections.enumerated()), id: \.element.id) { index, section in
+        if index > 0 {
+          Divider()
+        }
         Section(section.name) {
           ForEach(section.ports) { port in
             portMenu(port)
