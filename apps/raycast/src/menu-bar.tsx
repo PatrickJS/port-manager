@@ -40,6 +40,8 @@ export default function Command() {
   }, []);
 
   const visibleSections = portGroupSections(state.portGroups.slice(0, 40));
+  const regularSections = visibleSections.filter((section) => !isSafeToIgnoreSection(section));
+  const safeSections = visibleSections.filter(isSafeToIgnoreSection);
 
   return (
     <MenuBarExtra icon={Icon.Network} isLoading={state.isLoading}>
@@ -51,13 +53,20 @@ export default function Command() {
           <MenuBarExtra.Item title="No Open Ports" />
         ) : null}
       </MenuBarExtra.Section>
-      {visibleSections.map((section) => (
+      {regularSections.map((section) => (
         <MenuBarExtra.Section key={section.id} title={section.name}>
           {section.groups.map((group) => (
             <PortMenuItem key={group.id} group={group} />
           ))}
         </MenuBarExtra.Section>
       ))}
+      {safeSections.length > 0 ? (
+        <MenuBarExtra.Submenu title={`OS / Apple · Safe to ignore (${safeSections.reduce((count, section) => count + section.groups.length, 0)})`}>
+          {safeSections.flatMap((section) => section.groups).map((group) => (
+            <PortMenuItem key={group.id} group={group} />
+          ))}
+        </MenuBarExtra.Submenu>
+      ) : null}
       <MenuBarExtra.Item
         title="Open Port List"
         icon={Icon.List}
@@ -69,6 +78,10 @@ export default function Command() {
       </MenuBarExtra.Section>
     </MenuBarExtra>
   );
+}
+
+function isSafeToIgnoreSection(section: { id: string }) {
+  return section.id === "os-apple" || section.id === "system";
 }
 
 function PortMenuItem(props: { group: ListeningPortGroup }) {

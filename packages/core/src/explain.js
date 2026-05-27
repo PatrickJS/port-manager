@@ -27,8 +27,8 @@ const DISPLAY_GROUPS = {
   ai: { id: "ai", name: "AI", rank: 30 },
   tunnels: { id: "tunnels", name: "Tunnels", rank: 40 },
   apps: { id: "apps", name: "Apps", rank: 80 },
-  osApple: { id: "os-apple", name: "OS / Apple", rank: 90 },
   other: { id: "other", name: "Other", rank: 100 },
+  osApple: { id: "os-apple", name: "OS / Apple", rank: 120 },
 };
 
 export async function explainPort(options) {
@@ -193,7 +193,7 @@ function classifyDisplayGroup({ port, commonPort, owners }) {
   if (/\b(postgres|postgresql|mysql|mariadb|redis|mongo|mongodb|mongod)\b/.test(text)) {
     return DISPLAY_GROUPS.databases;
   }
-  if (/\b(ollama|lm studio|llama|gradio|jupyter|notebook)\b/.test(text) || [7860, 8888, 11434].includes(port)) {
+  if (/\b(ollama|lm studio|llama|gradio|jupyter|notebook|cursor helper|cursor)\b/.test(text) || [7860, 8888, 11434].includes(port)) {
     return DISPLAY_GROUPS.ai;
   }
   if (/\b(tailscale|ipnextension|ngrok|cloudflared|cloudflare|tunnel|trycloudflare)\b/.test(text)) {

@@ -40,7 +40,7 @@ struct MenuBarPortsView: View {
     } else if store.ports.isEmpty {
       Text("No Open Ports")
     } else {
-      ForEach(Array(menuSections.enumerated()), id: \.element.id) { index, section in
+      ForEach(Array(regularMenuSections.enumerated()), id: \.element.id) { index, section in
         if index > 0 {
           Divider()
         }
@@ -50,7 +50,25 @@ struct MenuBarPortsView: View {
           }
         }
       }
+      if !safeMenuSections.isEmpty {
+        Divider()
+        ForEach(safeMenuSections) { section in
+          Menu("\(section.name) · Safe to ignore (\(section.ports.count))") {
+            ForEach(section.ports) { port in
+              portMenu(port)
+            }
+          }
+        }
+      }
     }
+  }
+
+  private var regularMenuSections: [MenuPortSection] {
+    menuSections.filter { !$0.isSafeToIgnore }
+  }
+
+  private var safeMenuSections: [MenuPortSection] {
+    menuSections.filter(\.isSafeToIgnore)
   }
 
   private var menuSections: [MenuPortSection] {
@@ -143,6 +161,10 @@ private struct MenuPortSection: Identifiable {
   let name: String
   let rank: Int
   let ports: [ListeningPort]
+
+  var isSafeToIgnore: Bool {
+    id == "os-apple" || id == "system"
+  }
 
   init(group: PortDisplayGroup, ports: [ListeningPort]) {
     id = group.id
