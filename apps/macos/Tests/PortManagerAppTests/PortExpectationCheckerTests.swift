@@ -27,7 +27,7 @@ import Testing
   #expect(warnings.contains { $0.message.contains("not under /System") })
 }
 
-private func listeningPort(
+func listeningPort(
   processName: String,
   command: String,
   bind: PortBind,

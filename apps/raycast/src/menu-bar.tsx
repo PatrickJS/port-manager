@@ -11,7 +11,7 @@ import {
   showToast,
   Toast,
 } from "@raycast/api";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   canKillGroup,
   groupedPorts,
@@ -94,20 +94,18 @@ function PortClusterMenuItem(props: { cluster: PortGroupCluster }) {
 
   const ports = cluster.groups.map((group) => group.port).join(", ");
   return (
-    <Fragment>
-      <MenuBarExtra.Item title={truncate(cluster.title, 30)} subtitle={truncate(`${cluster.groups.length} ports · ${ports}`, 30)} />
+    <MenuBarExtra.Submenu title={truncate(`${cluster.title} ${cluster.groups.length} ports: ${ports}`, 80)}>
       {cluster.groups.map((group) => (
         <PortMenuItem key={group.id} group={group} />
       ))}
-      <MenuBarExtra.Submenu title={truncate(`${cluster.title} Actions`, 30)}>
-        <MenuBarExtra.Item title="Copy Ports" icon={Icon.Clipboard} onAction={() => Clipboard.copy(ports)} />
-        <MenuBarExtra.Item
-          title="Open Port List"
-          icon={Icon.List}
-          onAction={() => launchCommand({ name: "list-ports", type: LaunchType.UserInitiated })}
-        />
-      </MenuBarExtra.Submenu>
-    </Fragment>
+      <MenuBarExtra.Separator />
+      <MenuBarExtra.Item title="Copy Ports" icon={Icon.Clipboard} onAction={() => Clipboard.copy(ports)} />
+      <MenuBarExtra.Item
+        title="Open Port List"
+        icon={Icon.List}
+        onAction={() => launchCommand({ name: "list-ports", type: LaunchType.UserInitiated })}
+      />
+    </MenuBarExtra.Submenu>
   );
 }
 

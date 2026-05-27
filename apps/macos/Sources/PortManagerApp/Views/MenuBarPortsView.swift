@@ -27,7 +27,7 @@ struct MenuBarPortsView: View {
     .task {
       await store.refresh()
     }
-      .onReceive(NotificationCenter.default.publisher(for: .refreshPortsRequested)) { _ in
+    .onReceive(NotificationCenter.default.publisher(for: .refreshPortsRequested)) { _ in
       Task { await store.refresh() }
     }
     .onReceive(NotificationCenter.default.publisher(for: .groupingRulesChanged)) { _ in
@@ -129,11 +129,11 @@ struct MenuBarPortsView: View {
     if cluster.isSinglePort, let port = cluster.firstPort {
       portMenu(port)
     } else {
-      Text(clusterTitle(for: cluster))
-      ForEach(cluster.ports) { port in
-        portMenu(port)
-      }
-      Menu(truncated("\(cluster.title) Actions")) {
+      Menu(menuClusterSummaryTitle(for: cluster)) {
+        ForEach(cluster.ports) { port in
+          portMenu(port)
+        }
+        Divider()
         Button("Copy Ports") {
           NSPasteboard.general.clearContents()
           NSPasteboard.general.setString(cluster.portList, forType: .string)
@@ -184,6 +184,13 @@ struct MenuBarPortsView: View {
     }
     return "\(value.prefix(29))..."
   }
+}
+
+func menuClusterSummaryTitle(for cluster: PortCluster) -> String {
+  if cluster.portList.isEmpty {
+    return "\(cluster.title) \(cluster.portCount) ports"
+  }
+  return "\(cluster.title) \(cluster.portCount) ports: \(cluster.portList)"
 }
 
 private struct MenuPortSection: Identifiable {

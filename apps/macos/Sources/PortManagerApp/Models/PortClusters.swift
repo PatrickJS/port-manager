@@ -60,6 +60,11 @@ func portClusters(
 }
 
 func portClusterTitle(for port: ListeningPort, rules: [PortGroupingRule] = PortGroupingRule.defaults) -> String {
+  if let rule = matchingGroupingRule(for: groupingCandidates(for: port), rules: rules),
+     !rule.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+    return rule.title.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
   let title = port.title.trimmingCharacters(in: .whitespacesAndNewlines)
   if !title.isEmpty {
     return normalizedPortClusterTitle(title, rules: rules)

@@ -37,6 +37,7 @@ struct PortGroupingRule: Identifiable, Codable, Hashable {
     PortGroupingRule(id: "raycast", isEnabled: true, match: "raycast", matchMode: .exact, title: "Raycast", displayGroupID: "apps"),
     PortGroupingRule(id: "reflect", isEnabled: true, match: "reflect", matchMode: .exact, title: "Reflect", displayGroupID: "apps"),
     PortGroupingRule(id: "spotify", isEnabled: true, match: "spotify", matchMode: .exact, title: "Spotify", displayGroupID: "apps"),
+    PortGroupingRule(id: "goalbuddy", isEnabled: true, match: "goalbuddy", matchMode: .contains, title: "GoalBuddy", displayGroupID: "web-dev"),
     PortGroupingRule(id: "tailscale-ipn", isEnabled: true, match: "ipnextension", matchMode: .exact, title: "Tailscale", displayGroupID: "tunnels"),
     PortGroupingRule(id: "cloudflared", isEnabled: true, match: "cloudflared", matchMode: .exact, title: "Cloudflare Tunnel", displayGroupID: "tunnels"),
     PortGroupingRule(id: "ngrok", isEnabled: true, match: "ngrok", matchMode: .exact, title: "ngrok", displayGroupID: "tunnels"),

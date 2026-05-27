@@ -57,7 +57,7 @@ export function portGroupSections(groups: ListeningPortGroup[]) {
 }
 
 export function portGroupTitle(group: ListeningPortGroup) {
-  return group.title || `Port ${group.port}`;
+  return inferredPortGroupTitle(group) || group.title || `Port ${group.port}`;
 }
 
 export type PortGroupCluster = {
@@ -93,10 +93,28 @@ function normalizedPortGroupTitle(title: string) {
   if (lowercased === "raycast") return "Raycast";
   if (lowercased === "reflect") return "Reflect";
   if (lowercased === "spotify") return "Spotify";
+  if (lowercased.includes("goalbuddy")) return "GoalBuddy";
   if (lowercased === "ipnextension") return "Tailscale";
   if (lowercased === "cloudflared") return "Cloudflare Tunnel";
   if (lowercased === "ngrok") return "ngrok";
   return title;
+}
+
+function inferredPortGroupTitle(group: ListeningPortGroup) {
+  const text = group.owners
+    .flatMap((owner) => [
+      owner.name,
+      owner.command,
+      owner.args,
+      owner.cwd,
+      owner.launchd?.originator,
+    ])
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (text.includes("goalbuddy")) return "GoalBuddy";
+  return null;
 }
 
 function normalizedPortGroupKey(title: string) {

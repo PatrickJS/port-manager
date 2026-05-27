@@ -261,11 +261,30 @@ function groupTitle(owners) {
   if (owners.length === 0) {
     return "Unknown";
   }
+  const knownTitle = knownOwnerTitle(owners);
+  if (knownTitle) {
+    return knownTitle;
+  }
   const first = ownerTitle(owners[0]);
   if (owners.length === 1) {
     return first;
   }
   return `${first} + ${owners.length - 1} more`;
+}
+
+function knownOwnerTitle(owners) {
+  const text = owners.flatMap((owner) => [
+    owner.name,
+    owner.command,
+    owner.args,
+    owner.cwd,
+    owner.launchd?.originator,
+  ]).filter(Boolean).join(" ").toLowerCase();
+
+  if (text.includes("goalbuddy")) {
+    return "GoalBuddy";
+  }
+  return null;
 }
 
 function ownerTitle(owner) {

@@ -30,11 +30,15 @@ struct PortInspectionWarning: Codable, Hashable, Identifiable {
 @Observable
 final class PortInspectionStore {
   var inspections: [String: PortInspection] = [:]
+  var inspectionHistory: [String: [PortInspection]] = [:]
   var inspectingKeys: Set<String> = []
 
   private let defaultsKey = "PortManagerSavedInspections"
+  private let historyDefaultsKey = "PortManagerSavedInspectionHistory"
+  private let userDefaults: UserDefaults
 
-  init() {
+  init(userDefaults: UserDefaults = .standard) {
+    self.userDefaults = userDefaults
     load()
   }
 
@@ -52,22 +56,38 @@ final class PortInspectionStore {
     defer { inspectingKeys.remove(key) }
 
     let inspection = await PortInspector.inspect(port: port, allPorts: allPorts, rules: rules)
-    inspections[key] = inspection
+    record(inspection)
+  }
+
+  func record(_ inspection: PortInspection) {
+    inspections[inspection.key] = inspection
+    var history = inspectionHistory[inspection.key] ?? []
+    history.append(inspection)
+    inspectionHistory[inspection.key] = Array(history.suffix(25))
     save()
   }
 
   private func load() {
-    guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-          let decoded = try? JSONDecoder().decode([String: PortInspection].self, from: data)
-    else {
-      return
+    if let data = userDefaults.data(forKey: defaultsKey),
+       let decoded = try? JSONDecoder().decode([String: PortInspection].self, from: data) {
+      inspections = decoded
     }
-    inspections = decoded
+
+    if let data = userDefaults.data(forKey: historyDefaultsKey),
+       let decoded = try? JSONDecoder().decode([String: [PortInspection]].self, from: data) {
+      inspectionHistory = decoded
+    } else {
+      inspectionHistory = inspections.mapValues { [$0] }
+    }
   }
 
   private func save() {
-    guard let data = try? JSONEncoder().encode(inspections) else { return }
-    UserDefaults.standard.set(data, forKey: defaultsKey)
+    if let data = try? JSONEncoder().encode(inspections) {
+      userDefaults.set(data, forKey: defaultsKey)
+    }
+    if let data = try? JSONEncoder().encode(inspectionHistory) {
+      userDefaults.set(data, forKey: historyDefaultsKey)
+    }
   }
 }
 

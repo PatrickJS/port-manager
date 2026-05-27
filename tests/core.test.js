@@ -216,15 +216,19 @@ test("groupPortEntries assigns default display groups", () => {
     { port: 6463, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 18, name: "Discord Helper (Renderer)", port: 6463, command: "/Applications/Discord.app/Contents/Frameworks/Discord Helper (Renderer).app/Contents/MacOS/Discord Helper (Renderer)" }), commonPort: null },
     { port: 49350, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 19, name: "GitHub Desktop Helper (Renderer)", port: 49350, command: "/Applications/GitHub Desktop.app/Contents/Frameworks/GitHub Desktop Helper (Renderer).app/Contents/MacOS/GitHub Desktop Helper (Renderer)" }), commonPort: null },
     { port: 40423, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 20, name: "Cursor Helper (Plugin)", port: 40423, command: "/Applications/Cursor.app/Contents/Frameworks/Cursor Helper (Plugin).app/Contents/MacOS/Cursor Helper (Plugin)" }), commonPort: null },
+    { port: 41737, host: "127.0.0.1", protocol: "TCP", owner: owner({ pid: 21, name: "node", port: 41737, args: "node /Users/patrickjs/.codex/plugins/goalbuddy/server.js", cwd: "/Users/patrickjs/.codex/plugins/goalbuddy" }), commonPort: null },
   ]);
 
   const displayGroupByPort = new Map(groups.map((group) => [group.port, group.displayGroup.name]));
   const displayRankByPort = new Map(groups.map((group) => [group.port, group.displayGroup.rank]));
+  const titleByPort = new Map(groups.map((group) => [group.port, group.title]));
 
   assert.equal(displayGroupByPort.get(5173), "Web Dev");
   assert.equal(displayGroupByPort.get(5432), "Databases");
   assert.equal(displayGroupByPort.get(11434), "AI");
   assert.equal(displayGroupByPort.get(40423), "AI");
+  assert.equal(displayGroupByPort.get(41737), "Web Dev");
+  assert.equal(titleByPort.get(41737), "GoalBuddy");
   assert.equal(displayGroupByPort.get(443), "Tunnels");
   assert.equal(displayGroupByPort.get(5000), "OS / Apple");
   assert.equal(displayRankByPort.get(5000) > displayRankByPort.get(40423), true);
