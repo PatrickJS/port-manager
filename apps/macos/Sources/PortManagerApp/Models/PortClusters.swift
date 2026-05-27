@@ -25,12 +25,16 @@ struct PortCluster: Identifiable, Hashable {
   }
 }
 
-func portClusters(for ports: [ListeningPort], namespace: String) -> [PortCluster] {
+func portClusters(
+  for ports: [ListeningPort],
+  namespace: String,
+  rules: [PortGroupingRule] = PortGroupingRule.defaults
+) -> [PortCluster] {
   var buckets: [String: (title: String, ports: [ListeningPort])] = [:]
 
   for port in ports {
-    let title = portClusterTitle(for: port)
-    let key = portClusterKey(for: port)
+    let title = portClusterTitle(for: port, rules: rules)
+    let key = portClusterKey(for: port, rules: rules)
     var bucket = buckets[key] ?? (title: title, ports: [])
     bucket.ports.append(port)
     buckets[key] = bucket
@@ -55,45 +59,55 @@ func portClusters(for ports: [ListeningPort], namespace: String) -> [PortCluster
     }
 }
 
-func portClusterTitle(for port: ListeningPort) -> String {
+func portClusterTitle(for port: ListeningPort, rules: [PortGroupingRule] = PortGroupingRule.defaults) -> String {
   let title = port.title.trimmingCharacters(in: .whitespacesAndNewlines)
   if !title.isEmpty {
-    return normalizedPortClusterTitle(title)
+    return normalizedPortClusterTitle(title, rules: rules)
   }
   if let commonName = port.binds.compactMap(\.commonPort?.name).first {
-    return normalizedPortClusterTitle(commonName)
+    return normalizedPortClusterTitle(commonName, rules: rules)
   }
   return "Unknown"
 }
 
-func portClusterKey(for port: ListeningPort) -> String {
-  normalizedPortClusterKey(portClusterTitle(for: port))
+func portClusterKey(for port: ListeningPort, rules: [PortGroupingRule] = PortGroupingRule.defaults) -> String {
+  normalizedPortClusterKey(portClusterTitle(for: port, rules: rules))
 }
 
-private func normalizedPortClusterTitle(_ title: String) -> String {
-  let lowercased = title.lowercased()
-  if lowercased == "ollama" {
-    return "Ollama"
-  }
-  if lowercased.hasPrefix("cursor helper") {
-    return "Cursor Helper (Plugin)"
-  }
-  if lowercased.hasPrefix("github desktop helper") {
-    return "GitHub Desktop Helper"
-  }
-  if lowercased.hasPrefix("discord helper") {
-    return "Discord Helper"
-  }
-  if lowercased == "raycast" {
-    return "Raycast"
-  }
-  if lowercased == "reflect" {
-    return "Reflect"
-  }
-  if lowercased == "spotify" {
-    return "Spotify"
+func normalizedPortClusterTitle(_ title: String, rules: [PortGroupingRule] = PortGroupingRule.defaults) -> String {
+  if let rule = matchingGroupingRule(for: [title], rules: rules),
+     !rule.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+    return rule.title.trimmingCharacters(in: .whitespacesAndNewlines)
   }
   return title
+}
+
+func configuredDisplayGroup(for port: ListeningPort, rules: [PortGroupingRule]) -> PortDisplayGroup {
+  guard let rule = matchingGroupingRule(for: groupingCandidates(for: port), rules: rules),
+        let displayGroup = PortGroupingCategories.displayGroup(for: rule.displayGroupID)
+  else {
+    return port.displayGroup
+  }
+  return displayGroup
+}
+
+func matchingGroupingRule(for candidates: [String], rules: [PortGroupingRule]) -> PortGroupingRule? {
+  rules.first { rule in
+    rule.isEnabled && candidates.contains { rule.matches($0) }
+  }
+}
+
+private func groupingCandidates(for port: ListeningPort) -> [String] {
+  [
+    port.title,
+    port.processName,
+    port.command ?? "",
+    port.arguments ?? "",
+    port.currentDirectory ?? "",
+    port.launchOriginator ?? "",
+    port.binds.compactMap(\.commonPort?.name).joined(separator: " "),
+    port.binds.compactMap(\.ownerName).joined(separator: " "),
+  ]
 }
 
 private func normalizedPortClusterKey(_ title: String) -> String {

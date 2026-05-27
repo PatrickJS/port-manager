@@ -3,6 +3,7 @@ import SwiftUI
 struct PortDetailView: View {
   let port: ListeningPort?
   let allPorts: [ListeningPort]
+  let groupingRules: [PortGroupingRule]
   let inspectionStore: PortInspectionStore
   let onKill: (ListeningPort) -> Void
 
@@ -25,6 +26,7 @@ struct PortDetailView: View {
             InspectionSection(
               port: port,
               allPorts: allPorts,
+              groupingRules: groupingRules,
               inspectionStore: inspectionStore
             )
             DetailSection(title: "Evidence") {
@@ -65,23 +67,28 @@ struct PortDetailView: View {
 private struct InspectionSection: View {
   let port: ListeningPort
   let allPorts: [ListeningPort]
+  let groupingRules: [PortGroupingRule]
   let inspectionStore: PortInspectionStore
 
   var body: some View {
-    let inspection = inspectionStore.inspections[portClusterKey(for: port)]
+    let clusterKey = portClusterKey(for: port, rules: groupingRules)
+    let clusterTitle = portClusterTitle(for: port, rules: groupingRules)
+    let relatedPorts = allPorts.filter { portClusterKey(for: $0, rules: groupingRules) == clusterKey }
+    let currentWarnings = PortExpectationChecker.warnings(for: relatedPorts, title: clusterTitle)
+    let inspection = inspectionStore.inspections[clusterKey]
     DetailSection(title: "AI Inspection") {
       VStack(alignment: .leading, spacing: 10) {
         HStack(spacing: 8) {
           Button {
             Task {
-              await inspectionStore.inspect(port: port, allPorts: allPorts)
+              await inspectionStore.inspect(port: port, allPorts: allPorts, rules: groupingRules)
             }
           } label: {
             Label(inspection == nil ? "Ask AI" : "Inspect Again", systemImage: "sparkles")
           }
-          .disabled(inspectionStore.isInspecting(port))
+          .disabled(inspectionStore.isInspecting(port, rules: groupingRules))
 
-          if inspectionStore.isInspecting(port) {
+          if inspectionStore.isInspecting(port, rules: groupingRules) {
             ProgressView()
               .controlSize(.small)
           }
@@ -93,7 +100,29 @@ private struct InspectionSection: View {
           }
         }
 
+        if inspection == nil, !currentWarnings.isEmpty {
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(currentWarnings) { warning in
+              Label(warning.message, systemImage: warning.severity == "notice" ? "info.circle" : "exclamationmark.triangle")
+                .foregroundStyle(warning.severity == "notice" ? Color.secondary : Color.orange)
+                .textSelection(.enabled)
+            }
+            Text("Ask AI to inspect this warning with current process evidence and online app details.")
+              .foregroundStyle(.secondary)
+          }
+        }
+
         if let inspection {
+          if let warnings = inspection.warnings, !warnings.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+              ForEach(warnings) { warning in
+                Label(warning.message, systemImage: warning.severity == "notice" ? "info.circle" : "exclamationmark.triangle")
+                  .foregroundStyle(warning.severity == "notice" ? Color.secondary : Color.orange)
+                  .textSelection(.enabled)
+              }
+            }
+          }
+
           Text(inspection.summary)
             .textSelection(.enabled)
 
@@ -114,8 +143,29 @@ private struct InspectionSection: View {
                 .textSelection(.enabled)
             }
           }
+
+          if let sources = inspection.sources, !sources.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Online Sources")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              ForEach(sources) { source in
+                if let url = URL(string: source.url) {
+                  Link(source.title, destination: url)
+                } else {
+                  Text(source.title)
+                }
+                if let snippet = source.snippet, !snippet.isEmpty {
+                  Text(snippet)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                }
+              }
+            }
+          }
         } else {
-          Text("Inspect this app cluster to generate and save a local explanation from current process evidence.")
+          Text("Inspect this app cluster to generate and save an explanation from current process evidence and online app details.")
             .foregroundStyle(.secondary)
         }
       }

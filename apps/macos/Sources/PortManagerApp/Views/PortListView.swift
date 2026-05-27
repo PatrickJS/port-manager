@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PortListView: View {
   @Bindable var store: PortStore
+  let groupingRules: [PortGroupingRule]
   @State private var collapsedGroupIDs: Set<String> = ["os-apple", "system"]
   @State private var expandedClusterIDs: Set<String> = []
 
@@ -52,10 +53,12 @@ struct PortListView: View {
   }
 
   private var portSections: [PortListSection] {
-    let grouped = Dictionary(grouping: store.filteredPorts, by: \.displayGroup)
+    let grouped = Dictionary(grouping: store.filteredPorts) { port in
+      configuredDisplayGroup(for: port, rules: groupingRules)
+    }
     return grouped
       .map { group, ports in
-        PortListSection(group: group, ports: ports.sorted(by: sortPorts))
+        PortListSection(group: group, ports: ports.sorted(by: sortPorts), groupingRules: groupingRules)
       }
       .sorted { lhs, rhs in
         if lhs.rank != rhs.rank {
@@ -228,11 +231,11 @@ private struct PortListSection: Identifiable {
     id == "os-apple" || id == "system"
   }
 
-  init(group: PortDisplayGroup, ports: [ListeningPort]) {
+  init(group: PortDisplayGroup, ports: [ListeningPort], groupingRules: [PortGroupingRule]) {
     id = group.id
     name = group.name
     rank = group.rank
     self.ports = ports
-    clusters = portClusters(for: ports, namespace: group.id)
+    clusters = portClusters(for: ports, namespace: group.id, rules: groupingRules)
   }
 }

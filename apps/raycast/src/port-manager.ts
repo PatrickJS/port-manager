@@ -87,12 +87,15 @@ export function portGroupClusters(groups: ListeningPortGroup[], namespace: strin
 function normalizedPortGroupTitle(title: string) {
   const lowercased = title.toLowerCase();
   if (lowercased === "ollama") return "Ollama";
-  if (lowercased.startsWith("cursor helper")) return "Cursor Helper (Plugin)";
-  if (lowercased.startsWith("github desktop helper")) return "GitHub Desktop Helper";
-  if (lowercased.startsWith("discord helper")) return "Discord Helper";
+  if (lowercased === "cursor" || lowercased.startsWith("cursor helper")) return "Cursor";
+  if (lowercased.startsWith("github desktop helper")) return "GitHub Desktop";
+  if (lowercased.startsWith("discord helper")) return "Discord";
   if (lowercased === "raycast") return "Raycast";
   if (lowercased === "reflect") return "Reflect";
   if (lowercased === "spotify") return "Spotify";
+  if (lowercased === "ipnextension") return "Tailscale";
+  if (lowercased === "cloudflared") return "Cloudflare Tunnel";
+  if (lowercased === "ngrok") return "ngrok";
   return title;
 }
 

@@ -18,6 +18,11 @@ let package = Package(
     .executableTarget(
       name: "PortManagerLauncher",
       path: "Sources/PortManagerLauncher"
+    ),
+    .testTarget(
+      name: "PortManagerAppTests",
+      dependencies: ["PortManagerApp"],
+      path: "Tests/PortManagerAppTests"
     )
   ]
 )

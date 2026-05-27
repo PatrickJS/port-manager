@@ -20,7 +20,6 @@ declare namespace Preferences {
   /** Preferences accessible in the `menu-bar` command */
   export type MenuBar = ExtensionPreferences & {}
 }
-
 declare namespace Arguments {
   /** Arguments passed to the `list-ports` command */
   export type ListPorts = {}

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarPortsView: View {
   @State private var store = PortStore()
+  @State private var groupingRulesStore = PortGroupingRulesStore()
   let openMainWindow: () -> Void
 
   var body: some View {
@@ -26,8 +27,11 @@ struct MenuBarPortsView: View {
     .task {
       await store.refresh()
     }
-    .onReceive(NotificationCenter.default.publisher(for: .refreshPortsRequested)) { _ in
+      .onReceive(NotificationCenter.default.publisher(for: .refreshPortsRequested)) { _ in
       Task { await store.refresh() }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .groupingRulesChanged)) { _ in
+      groupingRulesStore.reload()
     }
   }
 
@@ -46,7 +50,7 @@ struct MenuBarPortsView: View {
         }
         Section(section.name) {
           ForEach(section.clusters) { cluster in
-            clusterMenu(cluster)
+            clusterPortRows(cluster)
           }
         }
       }
@@ -55,7 +59,7 @@ struct MenuBarPortsView: View {
         ForEach(safeMenuSections) { section in
           Menu("\(section.name) · Safe to ignore (\(section.ports.count))") {
             ForEach(section.clusters) { cluster in
-              clusterMenu(cluster)
+              clusterPortRows(cluster)
             }
           }
         }
@@ -72,11 +76,12 @@ struct MenuBarPortsView: View {
   }
 
   private var menuSections: [MenuPortSection] {
-    let visiblePorts = Array(store.ports.prefix(40))
-    let groups = Dictionary(grouping: visiblePorts, by: \.displayGroup)
+    let groups = Dictionary(grouping: store.ports) { port in
+      configuredDisplayGroup(for: port, rules: groupingRulesStore.rules)
+    }
     return groups
       .map { group, ports in
-        MenuPortSection(group: group, ports: ports.sorted(by: sortPorts))
+        MenuPortSection(group: group, ports: ports.sorted(by: sortPorts), groupingRules: groupingRulesStore.rules)
       }
       .sorted { lhs, rhs in
         if lhs.rank != rhs.rank {
@@ -120,18 +125,21 @@ struct MenuBarPortsView: View {
   }
 
   @ViewBuilder
-  private func clusterMenu(_ cluster: PortCluster) -> some View {
+  private func clusterPortRows(_ cluster: PortCluster) -> some View {
     if cluster.isSinglePort, let port = cluster.firstPort {
       portMenu(port)
     } else {
-      Menu(clusterTitle(for: cluster)) {
-        Text("\(cluster.portCount) ports")
-        if !cluster.portList.isEmpty {
-          Text("Ports \(cluster.portList)")
+      Text(clusterTitle(for: cluster))
+      ForEach(cluster.ports) { port in
+        portMenu(port)
+      }
+      Menu(truncated("\(cluster.title) Actions")) {
+        Button("Copy Ports") {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(cluster.portList, forType: .string)
         }
-        Divider()
-        ForEach(cluster.ports) { port in
-          portMenu(port)
+        Button("Open Port Manager") {
+          openMainWindow()
         }
       }
     }
@@ -189,11 +197,11 @@ private struct MenuPortSection: Identifiable {
     id == "os-apple" || id == "system"
   }
 
-  init(group: PortDisplayGroup, ports: [ListeningPort]) {
+  init(group: PortDisplayGroup, ports: [ListeningPort], groupingRules: [PortGroupingRule]) {
     id = group.id
     name = group.name
     rank = group.rank
     self.ports = ports
-    clusters = portClusters(for: ports, namespace: group.id)
+    clusters = portClusters(for: ports, namespace: group.id, rules: groupingRules)
   }
 }

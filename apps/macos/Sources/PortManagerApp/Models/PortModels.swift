@@ -74,7 +74,7 @@ struct ListeningPort: Identifiable, Hashable {
   }
 }
 
-struct PortDisplayGroup: Codable, Hashable {
+struct PortDisplayGroup: Identifiable, Codable, Hashable {
   let id: String
   let name: String
   let rank: Int

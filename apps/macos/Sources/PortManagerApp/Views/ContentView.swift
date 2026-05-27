@@ -3,18 +3,20 @@ import SwiftUI
 struct ContentView: View {
   @State private var store = PortStore()
   @State private var inspectionStore = PortInspectionStore()
+  @State private var groupingRulesStore = PortGroupingRulesStore()
   @State private var pendingKill: ListeningPort?
 
   var body: some View {
     @Bindable var store = store
 
     NavigationSplitView {
-      PortListView(store: store)
+      PortListView(store: store, groupingRules: groupingRulesStore.rules)
         .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
     } detail: {
       PortDetailView(
         port: store.selectedPort,
         allPorts: store.ports,
+        groupingRules: groupingRulesStore.rules,
         inspectionStore: inspectionStore
       ) { port in
         pendingKill = port
@@ -62,6 +64,9 @@ struct ContentView: View {
       if let port = store.selectedPort, port.canKill {
         pendingKill = port
       }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .groupingRulesChanged)) { _ in
+      groupingRulesStore.reload()
     }
   }
 
