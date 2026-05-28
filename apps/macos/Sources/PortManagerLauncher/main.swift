@@ -34,8 +34,31 @@ func run(_ executable: String, _ arguments: [String], logFailure: Bool = true) -
   }
 }
 
+func start(_ executable: String, _ arguments: [String]) -> Bool {
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: executable)
+  process.arguments = arguments
+  do {
+    try process.run()
+    return true
+  } catch {
+    FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+    return false
+  }
+}
+
 func launchApp() {
-  _ = run("/usr/bin/open", [appPath])
+  let appURL = URL(fileURLWithPath: appPath)
+  let binaryPath = appURL
+    .appendingPathComponent("Contents")
+    .appendingPathComponent("MacOS")
+    .appendingPathComponent(processName)
+    .path
+  if FileManager.default.isExecutableFile(atPath: binaryPath) {
+    _ = start(binaryPath, [])
+  } else {
+    _ = run("/usr/bin/open", ["-n", appPath])
+  }
 }
 
 func isAppRunning() -> Bool {

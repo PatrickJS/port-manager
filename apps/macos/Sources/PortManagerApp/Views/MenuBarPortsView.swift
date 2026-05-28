@@ -21,7 +21,7 @@ struct MenuBarPortsView: View {
       }
       Divider()
       Button("Quit Port Manager") {
-        NSApp.terminate(nil)
+        PortManagerAppLifecycle.quit()
       }
     }
     .task {
@@ -57,7 +57,7 @@ struct MenuBarPortsView: View {
       if !safeMenuSections.isEmpty {
         Divider()
         ForEach(safeMenuSections) { section in
-          Menu("\(section.name) · Safe to ignore (\(section.ports.count))") {
+          Menu(menuSectionSummaryTitle(for: section)) {
             ForEach(section.clusters) { cluster in
               clusterPortRows(cluster)
             }
@@ -193,12 +193,25 @@ func menuClusterSummaryTitle(for cluster: PortCluster) -> String {
   return "\(cluster.title) \(cluster.portCount) ports: \(cluster.portList)"
 }
 
+private func menuSectionSummaryTitle(for section: MenuPortSection) -> String {
+  if section.portList.isEmpty {
+    return "\(section.name) \(section.ports.count) ports"
+  }
+  return "\(section.name) \(section.ports.count) ports: \(section.portList)"
+}
+
 private struct MenuPortSection: Identifiable {
   let id: String
   let name: String
   let rank: Int
   let ports: [ListeningPort]
   let clusters: [PortCluster]
+  var portList: String {
+    ports
+      .compactMap(\.primaryPort)
+      .map(String.init)
+      .joined(separator: ", ")
+  }
 
   var isSafeToIgnore: Bool {
     id == "os-apple" || id == "system"

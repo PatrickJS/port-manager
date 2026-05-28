@@ -1,8 +1,19 @@
 import AppKit
 import SwiftUI
 
+@MainActor
+enum PortManagerAppLifecycle {
+  static var userRequestedTermination = false
+
+  static func quit() {
+    userRequestedTermination = true
+    NSApp.terminate(nil)
+  }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
+    ProcessInfo.processInfo.disableAutomaticTermination("Port Manager menu bar agent")
     if Self.shouldShowDockIcon {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)
@@ -24,6 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     false
+  }
+
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    if PortManagerAppLifecycle.userRequestedTermination || Self.shouldShowDockIcon {
+      return .terminateNow
+    }
+    return .terminateCancel
   }
 }
 
@@ -57,10 +75,7 @@ struct PortManagerApp: App {
         NSApp.activate(ignoringOtherApps: true)
       }
     } label: {
-      ZStack {
-        Image(systemName: "chart.bar.xaxis")
-        Image(systemName: "slash")
-      }
+      Image(systemName: "chart.bar.xaxis")
     }
     Settings {
       SettingsView()

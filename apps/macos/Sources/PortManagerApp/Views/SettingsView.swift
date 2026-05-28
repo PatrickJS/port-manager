@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
   @State private var store = LaunchAgentSettingsStore()
   @State private var groupingStore = PortGroupingRulesStore()
+  @State private var aiStore = LocalAISettingsStore()
 
   var body: some View {
     Form {
@@ -41,6 +42,74 @@ struct SettingsView: View {
         diagnosticsBlock(title: "launchctl", text: store.launchctlStatus)
         diagnosticsBlock(title: "stdout log", text: store.stdoutLog)
         diagnosticsBlock(title: "stderr log", text: store.stderrLog)
+      }
+
+      Section("AI Inspection") {
+        Picker("Provider", selection: aiProviderBinding) {
+          ForEach(LocalAIProviderMode.allCases) { mode in
+            Text(mode.title).tag(mode)
+          }
+        }
+        .pickerStyle(.segmented)
+
+        Toggle("Prefer Codex in Auto", isOn: preferCodexBinding)
+        Toggle("Online research", isOn: onlineResearchBinding)
+
+        LabeledContent("Ollama URL") {
+          TextField("Ollama URL", text: ollamaBaseURLBinding)
+            .textFieldStyle(.roundedBorder)
+        }
+
+        if selectableOllamaModels.isEmpty {
+          LabeledContent("Ollama model") {
+            TextField("Auto recommended", text: ollamaModelBinding)
+              .textFieldStyle(.roundedBorder)
+          }
+        } else {
+          Picker("Ollama model", selection: ollamaModelBinding) {
+            if let recommended = aiStore.recommendedOllamaModel {
+              Text("Recommended: \(recommended)").tag(recommended)
+            }
+            ForEach(selectableOllamaModels.filter { $0 != aiStore.recommendedOllamaModel }, id: \.self) { model in
+              Text(model).tag(model)
+            }
+          }
+        }
+
+        LabeledContent("Codex command") {
+          TextField("codex", text: codexCommandBinding)
+            .textFieldStyle(.roundedBorder)
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+          HStack {
+            Text("Prompt")
+            Spacer()
+            Button("Reset Prompt") {
+              aiStore.resetPromptTemplate()
+            }
+          }
+          TextEditor(text: promptTemplateBinding)
+            .font(.system(.caption, design: .monospaced))
+            .frame(minHeight: 150)
+        }
+
+        HStack {
+          Button("Check AI Providers") {
+            Task { await aiStore.checkProviders() }
+          }
+          .disabled(aiStore.isChecking)
+
+          if aiStore.isChecking {
+            ProgressView()
+              .controlSize(.small)
+          }
+        }
+
+        Text(aiStore.statusMessage)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
       }
 
       Section("Grouping Rules") {
@@ -88,6 +157,8 @@ struct SettingsView: View {
     .frame(width: 560)
     .task {
       store.reload()
+      aiStore.reload()
+      await aiStore.checkProviders()
     }
   }
 
@@ -120,6 +191,66 @@ struct SettingsView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       .frame(minHeight: 34, maxHeight: 120)
+    }
+  }
+
+  private var aiProviderBinding: Binding<LocalAIProviderMode> {
+    Binding {
+      aiStore.settings.providerMode
+    } set: { value in
+      aiStore.settings.providerMode = value
+    }
+  }
+
+  private var preferCodexBinding: Binding<Bool> {
+    Binding {
+      aiStore.settings.preferCodexInAuto
+    } set: { value in
+      aiStore.settings.preferCodexInAuto = value
+    }
+  }
+
+  private var onlineResearchBinding: Binding<Bool> {
+    Binding {
+      aiStore.settings.onlineResearchEnabled
+    } set: { value in
+      aiStore.settings.onlineResearchEnabled = value
+    }
+  }
+
+  private var ollamaBaseURLBinding: Binding<String> {
+    Binding {
+      aiStore.settings.ollamaBaseURL
+    } set: { value in
+      aiStore.settings.ollamaBaseURL = value
+    }
+  }
+
+  private var ollamaModelBinding: Binding<String> {
+    Binding {
+      aiStore.settings.ollamaModel
+    } set: { value in
+      aiStore.settings.ollamaModel = value
+    }
+  }
+
+  private var selectableOllamaModels: [String] {
+    aiStore.availableOllamaModels.filter(LocalAIInspectionService.isGenerativeOllamaModel)
+  }
+
+  private var codexCommandBinding: Binding<String> {
+    Binding {
+      aiStore.settings.codexCommand
+    } set: { value in
+      aiStore.settings.codexCommand = value
+    }
+  }
+
+  private var promptTemplateBinding: Binding<String> {
+    Binding {
+      aiStore.settings.promptTemplate
+    } set: { value in
+      aiStore.settings.promptTemplate = value
     }
   }
 

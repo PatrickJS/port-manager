@@ -126,6 +126,19 @@ private struct InspectionSection: View {
           Text(inspection.summary)
             .textSelection(.enabled)
 
+          if let localAI = inspection.localAI {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Local AI")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Text("\(localAI.provider)\(localAI.model.map { " / \($0)" } ?? "")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Text(localAI.summary)
+                .textSelection(.enabled)
+            }
+          }
+
           VStack(alignment: .leading, spacing: 8) {
             ForEach(inspection.details, id: \.self) { detail in
               EvidenceLine(text: detail)

@@ -144,6 +144,13 @@ private struct PortSectionHeaderView: View {
             .foregroundStyle(.secondary)
         }
 
+        if isCollapsed, !section.portList.isEmpty {
+          Text(section.portList)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+
         Spacer()
       }
       .contentShape(Rectangle())
@@ -226,6 +233,12 @@ private struct PortListSection: Identifiable {
   let rank: Int
   let ports: [ListeningPort]
   let clusters: [PortCluster]
+  var portList: String {
+    ports
+      .compactMap(\.primaryPort)
+      .map(String.init)
+      .joined(separator: ", ")
+  }
 
   var isSafeToIgnore: Bool {
     id == "os-apple" || id == "system"

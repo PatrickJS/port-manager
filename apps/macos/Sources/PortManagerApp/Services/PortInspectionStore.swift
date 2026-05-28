@@ -11,6 +11,31 @@ struct PortInspection: Codable, Hashable {
   let ports: [Int]
   let sources: [PortInspectionSource]?
   let warnings: [PortInspectionWarning]?
+  let localAI: PortInspectionAI?
+
+  init(
+    key: String,
+    title: String,
+    generatedAt: Date,
+    summary: String,
+    details: [String],
+    basis: [String],
+    ports: [Int],
+    sources: [PortInspectionSource]? = nil,
+    warnings: [PortInspectionWarning]? = nil,
+    localAI: PortInspectionAI? = nil
+  ) {
+    self.key = key
+    self.title = title
+    self.generatedAt = generatedAt
+    self.summary = summary
+    self.details = details
+    self.basis = basis
+    self.ports = ports
+    self.sources = sources
+    self.warnings = warnings
+    self.localAI = localAI
+  }
 }
 
 struct PortInspectionSource: Codable, Hashable, Identifiable {
@@ -169,12 +194,27 @@ enum PortInspector {
       details.insert("Warning: \(warnings.map(\.message).joined(separator: " "))", at: 0)
     }
 
-    let onlineResearch = await OnlinePortResearchService.research(title: title, warnings: warnings)
+    let localAISettings = LocalAISettings.load()
+    let onlineResearch = localAISettings.onlineResearchEnabled
+      ? await OnlinePortResearchService.research(title: title, warnings: warnings)
+      : OnlinePortResearch(summary: nil, sources: [])
     if !onlineResearch.sources.isEmpty {
       basis.append("Online research used app/category search terms only; local paths, arguments, and working directories were not sent.")
       if let summary = onlineResearch.summary {
         details.append(summary)
       }
+    }
+
+    let localAI = await LocalAIInspectionService.enrich(
+      title: title,
+      ports: relatedPorts,
+      warnings: warnings,
+      onlineResearch: onlineResearch,
+      settings: localAISettings
+    )
+    if let localAI {
+      details.append("Local AI added an explanation using \(localAI.provider)\(localAI.model.map { " (\($0))" } ?? "").")
+      basis.append("Local AI provider: \(localAI.provider)\(localAI.model.map { " / \($0)" } ?? "")")
     }
 
     return PortInspection(
@@ -186,7 +226,8 @@ enum PortInspector {
       basis: basis,
       ports: portNumbers,
       sources: onlineResearch.sources,
-      warnings: warnings
+      warnings: warnings,
+      localAI: localAI
     )
   }
 
