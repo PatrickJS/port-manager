@@ -3,8 +3,10 @@ import SwiftUI
 struct PortListView: View {
   @Bindable var store: PortStore
   let groupingRules: [PortGroupingRule]
+  let groups: [PortDisplayGroup]
   @State private var collapsedGroupIDs: Set<String> = ["os-apple", "system"]
   @State private var expandedClusterIDs: Set<String> = []
+  @State private var collapsedClusterIDs: Set<String> = []
 
   var body: some View {
     List(selection: $store.selection) {
@@ -20,7 +22,7 @@ struct PortListView: View {
                 PortRowView(port: port)
                   .tag(port.id)
               } else {
-                DisclosureGroup(isExpanded: clusterExpansionBinding(for: cluster)) {
+                DisclosureGroup(isExpanded: clusterExpansionBinding(for: cluster, in: section)) {
                   ForEach(cluster.ports) { port in
                     PortRowView(port: port)
                       .tag(port.id)
@@ -54,7 +56,7 @@ struct PortListView: View {
 
   private var portSections: [PortListSection] {
     let grouped = Dictionary(grouping: store.filteredPorts) { port in
-      configuredDisplayGroup(for: port, rules: groupingRules)
+      configuredDisplayGroup(for: port, rules: groupingRules, groups: groups)
     }
     return grouped
       .map { group, ports in
@@ -84,13 +86,17 @@ struct PortListView: View {
     }
   }
 
-  private func clusterExpansionBinding(for cluster: PortCluster) -> Binding<Bool> {
+  private func clusterExpansionBinding(for cluster: PortCluster, in section: PortListSection) -> Binding<Bool> {
     Binding {
-      hasActiveSearch || expandedClusterIDs.contains(cluster.id)
+      hasActiveSearch ||
+        expandedClusterIDs.contains(cluster.id) ||
+        (!section.isSafeToIgnore && !collapsedClusterIDs.contains(cluster.id))
     } set: { isExpanded in
       if isExpanded {
+        collapsedClusterIDs.remove(cluster.id)
         expandedClusterIDs.insert(cluster.id)
       } else {
+        collapsedClusterIDs.insert(cluster.id)
         expandedClusterIDs.remove(cluster.id)
       }
     }
@@ -108,12 +114,21 @@ private struct ListHeaderView: View {
   let store: PortStore
 
   var body: some View {
-    HStack {
-      Text("\(store.filteredPorts.count) Ports")
-      Spacer()
-      if store.isLoading {
-        ProgressView()
-          .controlSize(.small)
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Text("\(store.filteredPorts.count) Ports")
+        Spacer()
+        if store.isLoading {
+          ProgressView()
+            .controlSize(.small)
+        }
+      }
+
+      if let statusMessage = store.statusMessage {
+        Text(statusMessage)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
       }
     }
   }

@@ -87,9 +87,13 @@ func normalizedPortClusterTitle(_ title: String, rules: [PortGroupingRule] = Por
   return title
 }
 
-func configuredDisplayGroup(for port: ListeningPort, rules: [PortGroupingRule]) -> PortDisplayGroup {
+func configuredDisplayGroup(
+  for port: ListeningPort,
+  rules: [PortGroupingRule],
+  groups: [PortDisplayGroup] = PortGroupingCategories.defaults
+) -> PortDisplayGroup {
   guard let rule = matchingGroupingRule(for: groupingCandidates(for: port), rules: rules),
-        let displayGroup = PortGroupingCategories.displayGroup(for: rule.displayGroupID)
+        let displayGroup = PortGroupingCategories.displayGroup(for: rule.displayGroupID, in: groups)
   else {
     return port.displayGroup
   }

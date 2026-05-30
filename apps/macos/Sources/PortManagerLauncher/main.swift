@@ -65,13 +65,15 @@ func isAppRunning() -> Bool {
   run("/usr/bin/pgrep", ["-x", processName], logFailure: false) == 0
 }
 
-launchApp()
-Thread.sleep(forTimeInterval: 5)
+func launchAppIfNeeded() {
+  guard !isAppRunning() else { return }
+  launchApp()
+  Thread.sleep(forTimeInterval: 5)
+}
+
+launchAppIfNeeded()
 
 while true {
-  if !isAppRunning() {
-    launchApp()
-    Thread.sleep(forTimeInterval: 5)
-  }
+  launchAppIfNeeded()
   Thread.sleep(forTimeInterval: 15)
 }

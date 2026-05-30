@@ -1,17 +1,32 @@
 import Foundation
 
-struct PortManagerCLIClient {
-  private let config: PortManagerAppConfig
+protocol PortManagerCLIClientProtocol: Sendable {
+  var activeScannerCommand: String { get }
+  func listPorts() async throws -> [ListeningPort]
+  func killPort(_ port: ListeningPort) async throws -> KillPortResult
+}
 
-  init(config: PortManagerAppConfig = .load()) {
+struct PortManagerCLIClient: PortManagerCLIClientProtocol, Sendable {
+  private let config: PortManagerAppConfig
+  private let timeoutSeconds: TimeInterval
+
+  init(config: PortManagerAppConfig = .load(), timeoutSeconds: TimeInterval = 8) {
     self.config = config
+    self.timeoutSeconds = timeoutSeconds
+  }
+
+  var activeScannerCommand: String {
+    commandAttempts.first?.description ?? "No scanner command available"
   }
 
   func listPorts() async throws -> [ListeningPort] {
     let data = try await runPortManager(arguments: ["list", "--json"])
     let envelope = try JSONDecoder().decode(CLIEnvelope<CLIListResult>.self, from: data)
     guard envelope.ok else {
-      throw PortManagerCLIError.commandFailed(envelope.error?.message ?? "port-manager list failed")
+      throw PortManagerCLIError.commandFailed(
+        code: envelope.error?.code,
+        message: envelope.error?.message ?? "port-manager list failed"
+      )
     }
 
     if let portGroups = envelope.result.portGroups {
@@ -27,7 +42,7 @@ struct PortManagerCLIClient {
 
   func killPort(_ port: ListeningPort) async throws -> KillPortResult {
     guard let primaryPort = port.primaryPort else {
-      throw PortManagerCLIError.commandFailed("Selected process has no port binding")
+      throw PortManagerCLIError.commandFailed(code: nil, message: "Selected process has no port binding")
     }
 
     var arguments = [
@@ -42,31 +57,86 @@ struct PortManagerCLIClient {
     let data = try await runPortManager(arguments: arguments)
     let envelope = try JSONDecoder().decode(CLIEnvelope<KillPortResult>.self, from: data)
     guard envelope.ok else {
-      throw PortManagerCLIError.commandFailed(envelope.error?.message ?? "port-manager kill failed")
+      throw PortManagerCLIError.commandFailed(
+        code: envelope.error?.code,
+        message: envelope.error?.message ?? "port-manager kill failed"
+      )
     }
 
     return envelope.result
   }
 
   private func runPortManager(arguments: [String]) async throws -> Data {
+    var lastError: Error?
+    for command in commandAttempts {
+      do {
+        return try await run(command: command, arguments: arguments)
+      } catch let error as PortManagerCLIError {
+        throw error
+      } catch {
+        lastError = error
+      }
+    }
+    throw lastError ?? PortManagerCLIError.commandFailed(code: nil, message: "No Port Manager scanner command is available")
+  }
+
+  private var commandAttempts: [PortManagerCommand] {
+    var commands: [PortManagerCommand] = []
+    let fileManager = FileManager.default
+
+    if let nodePath = config.nodePath,
+       let cliEntrypointPath = config.cliEntrypointPath,
+       fileManager.isExecutableFile(atPath: nodePath),
+       fileManager.fileExists(atPath: cliEntrypointPath) {
+      commands.append(
+        PortManagerCommand(
+          executablePath: nodePath,
+          prefixArguments: [cliEntrypointPath],
+          description: "node \(cliEntrypointPath)"
+        )
+      )
+    }
+
+    if fileManager.isExecutableFile(atPath: config.pnpmPath) {
+      commands.append(
+        PortManagerCommand(
+          executablePath: config.pnpmPath,
+          prefixArguments: [
+            "--filter",
+            "@patrickjs/port-manager-cli",
+            "exec",
+            "port-manager"
+          ],
+          description: "pnpm --filter @patrickjs/port-manager-cli exec port-manager"
+        )
+      )
+    }
+
+    return commands
+  }
+
+  private func run(command: PortManagerCommand, arguments: [String]) async throws -> Data {
     try await Task.detached {
       let process = Process()
-      process.executableURL = URL(fileURLWithPath: config.pnpmPath)
+      process.executableURL = URL(fileURLWithPath: command.executablePath)
       process.currentDirectoryURL = URL(fileURLWithPath: config.repoRoot)
-      process.arguments = [
-        "--filter",
-        "@patrickjs/port-manager-cli",
-        "exec",
-        "port-manager"
-      ] + arguments
+      process.arguments = command.prefixArguments + arguments
       process.environment = config.processEnvironment
 
       let stdout = Pipe()
       let stderr = Pipe()
       process.standardOutput = stdout
       process.standardError = stderr
+      let timeoutState = ProcessTimeoutState()
 
       try process.run()
+      let timeoutTask = Task {
+        try? await Task.sleep(for: .seconds(timeoutSeconds))
+        if process.isRunning {
+          timeoutState.markTimedOut()
+          process.terminate()
+        }
+      }
       let outputTask = Task<Data, Never> {
         stdout.fileHandleForReading.readDataToEndOfFile()
       }
@@ -75,17 +145,24 @@ struct PortManagerCLIClient {
       }
 
       process.waitUntilExit()
+      timeoutTask.cancel()
 
       let output = await outputTask.value
       let errorData = await errorTask.value
 
+      if timeoutState.didTimeOut {
+        throw PortManagerCLIError.commandFailed(
+          code: "PORT_MANAGER_TIMEOUT",
+          message: "Port scan timed out after \(Int(timeoutSeconds)) seconds while running \(command.description)"
+        )
+      }
+
       guard process.terminationStatus == 0 else {
-        let stderrMessage = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let stdoutMessage = String(data: output, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let message = stderrMessage?.isEmpty == false
-          ? stderrMessage!
-          : stdoutMessage ?? "port-manager exited with \(process.terminationStatus)"
-        throw PortManagerCLIError.commandFailed(message.trimmingCharacters(in: .whitespacesAndNewlines))
+        throw PortManagerCLIError.fromProcessOutput(
+          stdout: output,
+          stderr: errorData,
+          fallback: "port-manager exited with \(process.terminationStatus)"
+        )
       }
 
       return output
@@ -182,9 +259,11 @@ struct PortManagerCLIClient {
   }
 }
 
-struct PortManagerAppConfig: Decodable {
+struct PortManagerAppConfig: Decodable, Sendable {
   let repoRoot: String
   let pnpmPath: String
+  let nodePath: String?
+  let cliEntrypointPath: String?
   let pathEnvironment: String?
 
   var processEnvironment: [String: String] {
@@ -208,6 +287,8 @@ struct PortManagerAppConfig: Decodable {
       return PortManagerAppConfig(
         repoRoot: FileManager.default.currentDirectoryPath,
         pnpmPath: "/opt/homebrew/bin/pnpm",
+        nodePath: "/opt/homebrew/bin/node",
+        cliEntrypointPath: nil,
         pathEnvironment: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
       )
     }
@@ -216,14 +297,69 @@ struct PortManagerAppConfig: Decodable {
   }
 }
 
+private struct PortManagerCommand: Sendable {
+  let executablePath: String
+  let prefixArguments: [String]
+  let description: String
+}
+
+private final class ProcessTimeoutState: @unchecked Sendable {
+  private let lock = NSLock()
+  private var timedOut = false
+
+  var didTimeOut: Bool {
+    lock.withLock { timedOut }
+  }
+
+  func markTimedOut() {
+    lock.withLock {
+      timedOut = true
+    }
+  }
+}
+
 enum PortManagerCLIError: LocalizedError {
-  case commandFailed(String)
+  case commandFailed(code: String?, message: String)
+
+  static func fromProcessOutput(stdout: Data, stderr: Data, fallback: String) -> PortManagerCLIError {
+    let stderrMessage = String(data: stderr, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let stdoutMessage = String(data: stdout, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let rawMessage = stderrMessage?.isEmpty == false
+      ? stderrMessage!
+      : stdoutMessage ?? fallback
+
+    if let envelope = decodeErrorEnvelope(from: stderr) ?? decodeErrorEnvelope(from: stdout),
+       let error = envelope.error {
+      return .commandFailed(code: error.code, message: error.message)
+    }
+
+    return .commandFailed(code: nil, message: rawMessage.trimmingCharacters(in: .whitespacesAndNewlines))
+  }
+
+  var code: String? {
+    switch self {
+    case .commandFailed(let code, _):
+      return code
+    }
+  }
+
+  var shouldRefreshPorts: Bool {
+    code == "PORT_MANAGER_NO_OWNER"
+  }
 
   var errorDescription: String? {
     switch self {
-    case .commandFailed(let message):
+    case .commandFailed(let code, let message):
+      if code == "PORT_MANAGER_NO_OWNER" {
+        return "\(message). The port list may be stale, so Port Manager refreshed it."
+      }
       return message
     }
+  }
+
+  private static func decodeErrorEnvelope(from data: Data) -> CLIErrorEnvelope? {
+    guard !data.isEmpty else { return nil }
+    return try? JSONDecoder().decode(CLIErrorEnvelope.self, from: data)
   }
 }
 
@@ -234,7 +370,13 @@ private struct CLIEnvelope<Result: Decodable>: Decodable {
 }
 
 private struct CLIErrorPayload: Decodable {
+  let code: String?
   let message: String
+}
+
+private struct CLIErrorEnvelope: Decodable {
+  let ok: Bool?
+  let error: CLIErrorPayload?
 }
 
 private struct CLIListResult: Decodable {

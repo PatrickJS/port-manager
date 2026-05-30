@@ -1,47 +1,60 @@
 import SwiftUI
 
 struct SettingsView: View {
+  let portStore: PortStore?
   @State private var store = LaunchAgentSettingsStore()
   @State private var groupingStore = PortGroupingRulesStore()
   @State private var aiStore = LocalAISettingsStore()
+  @State private var showDeveloperSettings = false
 
   var body: some View {
     Form {
       Section("Startup") {
         Toggle("Start at login and keep running", isOn: enabledBinding)
-
-        Picker("Launch target", selection: targetBinding) {
-          ForEach(LaunchAgentTarget.allCases) { target in
-            Text(target.title)
-              .tag(target)
-          }
-        }
-        .pickerStyle(.segmented)
-
-        Text(store.selectedTarget.detail)
-          .foregroundStyle(.secondary)
-
-        LabeledContent("App bundle") {
-          Text(store.resolvedTargetPath)
-            .font(.system(.caption, design: .monospaced))
-            .textSelection(.enabled)
-        }
       }
 
-      Section("Diagnostics") {
-        Button("Refresh Diagnostics") {
-          store.refreshDiagnostics()
-        }
+      Section {
+        DisclosureGroup("Developer Settings", isExpanded: $showDeveloperSettings) {
+          Toggle("Use local dist build", isOn: localDistBinding)
 
-        LabeledContent("Launcher") {
-          Text(store.launcherPath)
-            .font(.system(.caption, design: .monospaced))
-            .textSelection(.enabled)
-        }
+          Text(store.selectedTarget.detail)
+            .foregroundStyle(.secondary)
 
-        diagnosticsBlock(title: "launchctl", text: store.launchctlStatus)
-        diagnosticsBlock(title: "stdout log", text: store.stdoutLog)
-        diagnosticsBlock(title: "stderr log", text: store.stderrLog)
+          LabeledContent("App bundle") {
+            Text(store.resolvedTargetPath)
+              .font(.system(.caption, design: .monospaced))
+              .textSelection(.enabled)
+          }
+
+          Button("Refresh Diagnostics") {
+            store.refreshDiagnostics()
+          }
+
+          LabeledContent("Launcher") {
+            Text(store.launcherPath)
+              .font(.system(.caption, design: .monospaced))
+              .textSelection(.enabled)
+          }
+
+          diagnosticsBlock(title: "launchctl", text: store.launchctlStatus)
+          diagnosticsBlock(title: "stdout log", text: store.stdoutLog)
+          diagnosticsBlock(title: "stderr log", text: store.stderrLog)
+          if let portStore {
+            LabeledContent("Scanner") {
+              Text(portStore.activeScannerCommand)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+            }
+            LabeledContent("Last refresh") {
+              Text(refreshSummary(for: portStore))
+                .font(.caption)
+                .textSelection(.enabled)
+            }
+            if let lastRefreshError = portStore.lastRefreshError {
+              diagnosticsBlock(title: "scanner error", text: lastRefreshError)
+            }
+          }
+        }
       }
 
       Section("AI Inspection") {
@@ -112,13 +125,41 @@ struct SettingsView: View {
           .textSelection(.enabled)
       }
 
+      Section("Groups") {
+        Text("Create, edit, delete, and reset the sections shown in the app, menu-bar dropdown, Raycast, and AI explanations. Use plain names and stable IDs so a junior engineer or AI agent can refer to them clearly.")
+          .foregroundStyle(.secondary)
+
+        ForEach(groupingStore.groups.indices, id: \.self) { index in
+          GroupEditor(
+            group: groupBinding(at: index),
+            canDelete: groupingStore.groups.count > 1,
+            delete: { groupingStore.deleteGroup(at: index) }
+          )
+        }
+
+        HStack {
+          Button {
+            groupingStore.addGroup()
+          } label: {
+            Label("Add Group", systemImage: "plus")
+          }
+
+          Button {
+            groupingStore.resetGroups()
+          } label: {
+            Label("Reset Default Groups", systemImage: "arrow.counterclockwise")
+          }
+        }
+      }
+
       Section("Grouping Rules") {
-        Text("Matched top to bottom. Rules can rename app clusters and move matching ports into a section.")
+        Text("Create, edit, delete, reorder, and reset matching rules. Rules run top to bottom. A rule says: when process, command, arguments, working directory, owner, or known port text matches, rename that app cluster and place it in a group.")
           .foregroundStyle(.secondary)
 
         ForEach(groupingStore.rules.indices, id: \.self) { index in
           GroupingRuleEditor(
             rule: ruleBinding(at: index),
+            groups: groupingStore.groups,
             canMoveUp: index > 0,
             canMoveDown: index < groupingStore.rules.count - 1,
             moveUp: { moveRule(from: index, offset: -1) },
@@ -135,9 +176,9 @@ struct SettingsView: View {
           }
 
           Button {
-            groupingStore.resetDefaults()
+            groupingStore.resetRules()
           } label: {
-            Label("Reset Defaults", systemImage: "arrow.counterclockwise")
+            Label("Reset Default Rules", systemImage: "arrow.counterclockwise")
           }
         }
       }
@@ -154,12 +195,16 @@ struct SettingsView: View {
     }
     .formStyle(.grouped)
     .padding(20)
-    .frame(width: 560)
+    .frame(maxWidth: 760, alignment: .leading)
     .task {
       store.reload()
       aiStore.reload()
       await aiStore.checkProviders()
     }
+  }
+
+  init(portStore: PortStore? = nil) {
+    self.portStore = portStore
   }
 
   private var enabledBinding: Binding<Bool> {
@@ -182,6 +227,16 @@ struct SettingsView: View {
     }
   }
 
+  private var localDistBinding: Binding<Bool> {
+    Binding {
+      store.selectedTarget == .localDist
+    } set: { useLocalDist in
+      Task {
+        await store.setTarget(useLocalDist ? .localDist : .currentApp)
+      }
+    }
+  }
+
   private func diagnosticsBlock(title: String, text: String) -> some View {
     LabeledContent(title) {
       ScrollView {
@@ -192,6 +247,17 @@ struct SettingsView: View {
       }
       .frame(minHeight: 34, maxHeight: 120)
     }
+  }
+
+  private func refreshSummary(for portStore: PortStore) -> String {
+    guard let lastRefreshStarted = portStore.lastRefreshStarted else {
+      return "Not run yet"
+    }
+
+    let started = lastRefreshStarted.formatted(date: .abbreviated, time: .standard)
+    let updated = portStore.lastUpdated?.formatted(date: .omitted, time: .standard) ?? "no successful scan"
+    let duration = portStore.lastRefreshDuration.map { String(format: "%.2fs", $0) } ?? "running"
+    return "Started \(started), updated \(updated), duration \(duration)"
   }
 
   private var aiProviderBinding: Binding<LocalAIProviderMode> {
@@ -254,6 +320,14 @@ struct SettingsView: View {
     }
   }
 
+  private func groupBinding(at index: Int) -> Binding<PortDisplayGroup> {
+    Binding {
+      groupingStore.groups[index]
+    } set: { newValue in
+      groupingStore.groups[index] = newValue
+    }
+  }
+
   private func ruleBinding(at index: Int) -> Binding<PortGroupingRule> {
     Binding {
       groupingStore.rules[index]
@@ -273,8 +347,43 @@ struct SettingsView: View {
   }
 }
 
+private struct GroupEditor: View {
+  @Binding var group: PortDisplayGroup
+  let canDelete: Bool
+  let delete: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack {
+        TextField("Group name", text: $group.name)
+          .textFieldStyle(.roundedBorder)
+
+        Stepper("Rank \(group.rank)", value: $group.rank, in: 0...999, step: 10)
+          .frame(width: 120)
+
+        Button(role: .destructive, action: delete) {
+          Label("Delete Group", systemImage: "trash")
+        }
+        .labelStyle(.iconOnly)
+        .disabled(!canDelete || group.id == PortDisplayGroup.other.id)
+      }
+
+      Text("ID: \(group.id)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .textSelection(.enabled)
+
+      Text("CRUD: add with Add Group, edit name/rank here, delete with trash, restore defaults with Reset Default Groups.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+    .padding(.vertical, 6)
+  }
+}
+
 private struct GroupingRuleEditor: View {
   @Binding var rule: PortGroupingRule
+  let groups: [PortDisplayGroup]
   let canMoveUp: Bool
   let canMoveDown: Bool
   let moveUp: () -> Void
@@ -283,6 +392,16 @@ private struct GroupingRuleEditor: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      Text(ruleSummary)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .textSelection(.enabled)
+
+      Text("Rule ID: \(rule.id)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .textSelection(.enabled)
+
       HStack {
         Toggle("Enabled", isOn: $rule.isEnabled)
 
@@ -307,8 +426,10 @@ private struct GroupingRuleEditor: View {
       }
 
       HStack {
-        TextField("Match text", text: $rule.match)
-          .textFieldStyle(.roundedBorder)
+        LabeledContent("When text") {
+          TextField("cursor helper, ollama, goalbuddy", text: $rule.match)
+            .textFieldStyle(.roundedBorder)
+        }
 
         Picker("Mode", selection: $rule.matchMode) {
           ForEach(PortGroupingMatchMode.allCases) { mode in
@@ -319,11 +440,13 @@ private struct GroupingRuleEditor: View {
       }
 
       HStack {
-        TextField("Group as", text: $rule.title)
-          .textFieldStyle(.roundedBorder)
+        LabeledContent("Name cluster") {
+          TextField("Cursor, Ollama, GoalBuddy", text: $rule.title)
+            .textFieldStyle(.roundedBorder)
+        }
 
         Picker("Section", selection: $rule.displayGroupID) {
-          ForEach(PortGroupingCategories.defaults) { group in
+          ForEach(groups) { group in
             Text(group.name).tag(group.id)
           }
         }
@@ -331,5 +454,16 @@ private struct GroupingRuleEditor: View {
       }
     }
     .padding(.vertical, 6)
+  }
+
+  private var ruleSummary: String {
+    let matchText = rule.match.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? "<match text>"
+      : rule.match
+    let title = rule.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? "<cluster name>"
+      : rule.title
+    let groupName = groups.first { $0.id == rule.displayGroupID }?.name ?? rule.displayGroupID
+    return "If evidence \(rule.matchMode.title.lowercased())-matches \"\(matchText)\", show it as \"\(title)\" in \"\(groupName)\"."
   }
 }

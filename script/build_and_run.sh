@@ -17,10 +17,19 @@ APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 LAUNCHER_BINARY="$APP_MACOS/$LAUNCHER_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/$BUNDLE_ID.plist"
+GUI_DOMAIN="gui/$(id -u)"
 PNPM_PATH="$(command -v pnpm)"
 NODE_PATH="$(command -v node)"
+CLI_ENTRYPOINT="$ROOT_DIR/packages/cli/bin/port-manager.js"
 CLI_PATH="$(dirname "$NODE_PATH"):$(dirname "$PNPM_PATH"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+LAUNCH_AGENT_WAS_LOADED=0
+if /bin/launchctl print "$GUI_DOMAIN/$BUNDLE_ID" >/dev/null 2>&1; then
+  LAUNCH_AGENT_WAS_LOADED=1
+  /bin/launchctl bootout "$GUI_DOMAIN" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
+fi
+pkill -x "$LAUNCHER_NAME" >/dev/null 2>&1 || true
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 swift build --package-path "$PACKAGE_DIR" --product "$APP_NAME"
@@ -36,8 +45,8 @@ cp "$BUILD_LAUNCHER" "$LAUNCHER_BINARY"
 chmod +x "$APP_BINARY"
 chmod +x "$LAUNCHER_BINARY"
 
-node -e 'console.log(JSON.stringify({ repoRoot: process.argv[1], pnpmPath: process.argv[2], pathEnvironment: process.argv[3] }, null, 2))' \
-  "$ROOT_DIR" "$PNPM_PATH" "$CLI_PATH" >"$APP_RESOURCES/PortManagerConfig.json"
+node -e 'console.log(JSON.stringify({ repoRoot: process.argv[1], pnpmPath: process.argv[2], nodePath: process.argv[3], pathEnvironment: process.argv[4], cliEntrypointPath: process.argv[5] }, null, 2))' \
+  "$ROOT_DIR" "$PNPM_PATH" "$NODE_PATH" "$CLI_PATH" "$CLI_ENTRYPOINT" >"$APP_RESOURCES/PortManagerConfig.json"
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -61,31 +70,41 @@ cat >"$INFO_PLIST" <<PLIST
 PLIST
 
 open_app() {
-  /usr/bin/open -n "$APP_BUNDLE" "$@"
+  /usr/bin/open "$APP_BUNDLE" "$@"
+}
+
+start_launch_agent_if_needed() {
+  if [[ "$LAUNCH_AGENT_WAS_LOADED" != "1" || ! -f "$LAUNCH_AGENT_PLIST" ]]; then
+    return 1
+  fi
+  /bin/launchctl bootstrap "$GUI_DOMAIN" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || return 1
+  /bin/launchctl kickstart -k "$GUI_DOMAIN/$BUNDLE_ID" >/dev/null 2>&1 || true
+  return 0
 }
 
 case "$MODE" in
   --stage|stage)
     ;;
   run)
-    open_app
+    start_launch_agent_if_needed || open_app
     ;;
   --dock|dock)
+    start_launch_agent_if_needed || true
     open_app --args --dock
     ;;
   --debug|debug)
     lldb -- "$APP_BINARY"
     ;;
   --logs|logs)
-    open_app
+    start_launch_agent_if_needed || open_app
     /usr/bin/log stream --info --style compact --predicate "process == \"$APP_NAME\""
     ;;
   --telemetry|telemetry)
-    open_app
+    start_launch_agent_if_needed || open_app
     /usr/bin/log stream --info --style compact --predicate "subsystem == \"$BUNDLE_ID\""
     ;;
   --verify|verify)
-    open_app
+    start_launch_agent_if_needed || open_app
     sleep 1
     pgrep -x "$APP_NAME" >/dev/null
     ;;

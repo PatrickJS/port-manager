@@ -77,7 +77,7 @@ struct MenuBarPortsView: View {
 
   private var menuSections: [MenuPortSection] {
     let groups = Dictionary(grouping: store.ports) { port in
-      configuredDisplayGroup(for: port, rules: groupingRulesStore.rules)
+      configuredDisplayGroup(for: port, rules: groupingRulesStore.rules, groups: groupingRulesStore.groups)
     }
     return groups
       .map { group, ports in

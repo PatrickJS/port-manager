@@ -30,6 +30,38 @@ import Testing
   #expect(normalizedPortClusterTitle("ollama", rules: rules) == "Local Models")
 }
 
+@Test func customGroupsCanReceiveMatchingRules() {
+  let groups = [
+    PortDisplayGroup(id: "developer-tools", name: "Developer Tools", rank: 15),
+    PortDisplayGroup.other
+  ]
+  let rules = [
+    PortGroupingRule(
+      id: "custom-cursor",
+      isEnabled: true,
+      match: "cursor helper",
+      matchMode: .prefix,
+      title: "Cursor",
+      displayGroupID: "developer-tools"
+    )
+  ]
+  let port = listeningPort(
+    processName: "Cursor Helper (Plugin)",
+    command: "Cursor Helper (Plugin)",
+    bind: PortBind(id: "cursor", host: "127.0.0.1", port: 40423, proto: "TCP", commonPort: nil, ownerPid: 40423, ownerName: "Cursor Helper (Plugin)"),
+    displayGroup: .other
+  )
+
+  #expect(configuredDisplayGroup(for: port, rules: rules, groups: groups).name == "Developer Tools")
+}
+
+@Test func groupIDsAreStableAndReadable() {
+  let existing: Set<String> = ["developer-tools"]
+
+  #expect(PortGroupingCategories.stableID(for: "Developer Tools", existingIDs: existing) == "developer-tools-2")
+  #expect(PortGroupingCategories.stableID(for: "AI Services", existingIDs: existing) == "ai-services")
+}
+
 @Test func defaultRulesFoldGoalBuddyFromProcessEvidence() {
   let port = listeningPort(
     processName: "node",
